@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "unityrag": {
+      "command": "npx",
+      "args": ["-y", "UnityRAG"],
+      "env": {
+        "UNITY_RAG_BASE_URL": "http://127.0.0.1:8000",
+        "UNITY_SNIPPETS_PATH": "./snippets/unity_snippets.json",
+        "UNITY_SNIPPETS_INDEX_PATH": "./snippets/INDEX.md"
+      }
+    }
+  }
+}
