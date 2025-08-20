@@ -8,3 +8,5 @@ uvicorn
 tqdm
 requests
 python-dotenv
+sqlite
+faiss-cpu

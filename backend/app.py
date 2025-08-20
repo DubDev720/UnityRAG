@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 import uvicorn
+from pathlib import Path
 
 BASE_DIR = pathlib.Path(__file__).parent.resolve()
 load_dotenv(BASE_DIR / ".env")
@@ -136,6 +137,29 @@ def search(q: str = Query(..., min_length=1), version: Optional[str] = None, top
     res = _fetch(fused)
     if _is_symbol(q): res.sort(key=lambda r: (0 if r["api_symbol"] else 1))
     return {"query": q, "version": version, "results": res}
+    
+@app.post("/detect_project_version")
+def detect_project_version(payload: Dict = Body(...)):
+    project_path = payload.get("project_path")
+    if not project_path:
+        return JSONResponse({"error": "project_path required"}, status_code=400)
+
+    proj = Path(project_path)
+    f = proj / "ProjectSettings" / "ProjectVersion.txt"
+    if not f.exists():
+        return JSONResponse({"error": f"Not found: {f}"}, status_code=404)
+
+    try:
+        txt = f.read_text(encoding="utf-8", errors="ignore")
+        # Typical line: m_EditorVersion: 6000.1.3f1
+        import re
+        m = re.search(r"m_EditorVersion:\s*([0-9.]+)", txt)
+        ver = m.group(1) if m else None
+        stream = ver.split(".", maxsplit=2)[:2]  # e.g., ['6000','1'] -> '6000.1'
+        stream_str = ".".join(stream) if stream else None
+        return {"project_path": str(proj), "editor_version": ver, "stream": stream_str}
+    except Exception as e:
+        return JSONResponse({"error": f"Failed to parse: {e}"}, status_code=500)
 
 def main():
     parser = argparse.ArgumentParser()

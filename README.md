@@ -7,11 +7,21 @@ This bundle contains two components that work together:
 **Endpoints:** `/search`, `/versions`, `/set_index_dir`, `/health`.  
 **Skip re-embedding:** Point to any **existing index** at runtime via `POST /set_index_dir`.
 
-**Run:**
+**Run (Windows):**
 ```bash
 cd backend
 python -m venv .venv
-# Windows: .venv\Scripts\activate | macOS/Linux: source .venv/bin/activate
+.venv\Scripts\activate
+pip install -r requirements.txt
+python app.py serve
+# then open http://127.0.0.1:8000/health
+```
+
+**Run (macOS/Linux):**
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 python app.py serve
 # then open http://127.0.0.1:8000/health
