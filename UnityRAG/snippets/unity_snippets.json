@@ -1,1 +1,1904 @@
-[]
+[
+  {
+    "title": "Physics-based movement with Rigidbody (AddForce)",
+    "tags": ["physics", "movement"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\npublic class Mover : MonoBehaviour {\n    public float thrust = 10f;\n    private Rigidbody rb;\n    void Awake() {\n        rb = GetComponent<Rigidbody>();\n    }\n    void FixedUpdate() {\n        // apply forward force each physics step\n        rb.AddForce(transform.forward * thrust, ForceMode.Acceleration);\n    }\n}\n```",
+    "code_bad": "```csharp\n// Moves by directly setting transform position in Update (bypasses physics collisions)\ntransform.position += transform.forward * 10f * Time.deltaTime;\n```",
+    "explanation": "Use the physics engine for movement by applying forces in FixedUpdate. This ensures collisions and physics responses are handled correctly. Directly modifying the Transform each frame can cause tunneling and ignores collision detection:contentReference[oaicite:0]{index=0}. In both Unity 6.x and 2022.3, using <code>Rigidbody.AddForce</code> (or <code>MovePosition</code>) in the physics loop is the recommended approach:contentReference[oaicite:1]{index=1}.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rigidbody.AddForce.html",
+      "https://docs.unity3d.com/ScriptReference/Rigidbody.position.html#Description"
+    ]
+  },
+  {
+    "title": "Prevent tunneling with continuous collision detection",
+    "tags": ["physics", "collision"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Mark fast-moving objects to use continuous collision detection\nrigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;\n// For other objects it collides with, use Continuous\notherRigidbody.collisionDetectionMode = CollisionDetectionMode.Continuous;\n```",
+    "code_bad": "```csharp\n// Default (Discrete) mode can miss collisions for fast objects, causing tunneling\nrigidbody.collisionDetectionMode = CollisionDetectionMode.Discrete;\n```",
+    "explanation": "Enable continuous collision detection on fast-moving bodies to prevent them from passing through colliders between frames. Use <code>ContinuousDynamic</code> for fast projectiles and <code>Continuous</code> on objects they collide with:contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}. Continuous modes incur extra physics cost, but they greatly reduce missed collisions (tunneling). If you don't have issues with missed collisions, the default Discrete mode is fine:contentReference[oaicite:4]{index=4}.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rigidbody-collisionDetectionMode.html"
+    ]
+  },
+  {
+    "title": "CharacterController for player movement (physics-free)",
+    "tags": ["physics", "character"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\npublic class PlayerMover : MonoBehaviour {\n    public float speed = 5f;\n    public float jumpHeight = 2f;\n    CharacterController controller;\n    Vector3 velocity;\n    void Start() {\n        controller = GetComponent<CharacterController>();\n    }\n    void Update() {\n        // horizontal movement\n        float h = Input.GetAxis(\"Horizontal\");\n        float v = Input.GetAxis(\"Vertical\");\n        Vector3 move = new Vector3(h, 0, v);\n        controller.Move(move * speed * Time.deltaTime);\n        // gravity and jump\n        if(controller.isGrounded && velocity.y < 0) {\n            velocity.y = 0f;\n        }\n        if(Input.GetButtonDown(\"Jump\") && controller.isGrounded) {\n            velocity.y = Mathf.Sqrt(jumpHeight * -2f * Physics.gravity.y);\n        }\n        velocity.y += Physics.gravity.y * Time.deltaTime;\n        controller.Move(velocity * Time.deltaTime);\n    }\n}\n```",
+    "code_bad": "```csharp\n// Moving character by Rigidbody or Transform can introduce physics side effects or no collision\ntransform.position += transform.forward * speed * Time.deltaTime; \nrigidbody.AddForce(Vector3.up * 5f, ForceMode.Impulse); // (if using Rigidbody for jump, harder to control precisely)\n```",
+    "explanation": "Use a <code>CharacterController</code> for player avatars that need responsive movement without full physics. The CharacterController is essentially a capsule collider that you move manually with <code>Move()</code>; it will slide along walls and handle steps/slopes:contentReference[oaicite:5]{index=5}:contentReference[oaicite:6]{index=6}. It does *not* react to physics forces on its own:contentReference[oaicite:7]{index=7}, so you explicitly handle gravity and jumps in code. This gives you tight control and avoids the unpredictability of Rigidbody physics for player movement. Always apply gravity since <code>CharacterController.Move</code> doesn't automatically do so:contentReference[oaicite:8]{index=8}.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/CharacterController.Move.html",
+      "https://docs.unity3d.com/Manual/class-CharacterController.html"
+    ]
+  },
+  {
+    "title": "Action-based Input vs Legacy Input Manager",
+    "tags": ["input"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing UnityEngine.InputSystem;\npublic class PlayerInputHandler : MonoBehaviour {\n    public InputActionReference moveAction;\n    void OnEnable() {\n        moveAction.action.Enable();\n    }\n    void OnDisable() {\n        moveAction.action.Disable();\n    }\n    void Update() {\n        Vector2 move = moveAction.action.ReadValue<Vector2>();\n        // use move.x and move.y for movement\n    }\n}\n```",
+    "code_bad": "```csharp\n// Legacy Input Manager usage (fixed axes and not easily remappable)\nfloat horizontal = Input.GetAxis(\"Horizontal\");\nfloat vertical = Input.GetAxis(\"Vertical\");\n```",
+    "explanation": "The new Input System is a **more flexible** way to handle input, supporting multiple devices, rebindable controls, and action-based events:contentReference[oaicite:9]{index=9}:contentReference[oaicite:10]{index=10}. By Unity 6, it's intended to replace the old <code>Input.GetAxis/GetKey</code> approach:contentReference[oaicite:11]{index=11}. Use <code>InputAction</code>s (from the UnityEngine.InputSystem namespace) to read inputs, which can be configured in an Input Actions asset. The legacy Input Manager requires hardcoding axis names and lacks runtime remapping, whereas the new system allows robust control schemes and is the default in modern Unity projects.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://unity.com/features/input-system#fast-and-flexible-solution",
+      "https://docs.unity3d.com/Packages/com.unity.inputsystem@1.0/manual/Installation.html"
+    ]
+  },
+  {
+    "title": "Use ScriptableObjects for shared data and configuration",
+    "tags": ["scripting", "architecture"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Define a ScriptableObject to hold game settings\n[CreateAssetMenu(menuName=\"GameSettings\")]\npublic class GameSettings : ScriptableObject {\n    public int maxLives = 3;\n    public Color playerColor;\n}\n\npublic class Player : MonoBehaviour {\n    public GameSettings settings; // assign via Inspector\n    void Start() {\n        Debug.Log($\"Player lives: {settings.maxLives}\");\n        GetComponent<Renderer>().material.color = settings.playerColor;\n    }\n}\n```",
+    "code_bad": "```csharp\npublic class Player : MonoBehaviour {\n    // Hard-coded or duplicated data - harder to tweak or share\n    private int maxLives = 3;\n    void Start() {\n        Debug.Log(\"Player lives: \" + maxLives);\n    }\n}\n\n// Or using global static variables, which can become difficult to manage and test\n```",
+    "explanation": "Use **ScriptableObjects** to store data or configuration that needs to be shared or easily modified in the Editor. ScriptableObjects allow you to decouple data from MonoBehaviour scripts and avoid hard-coding constants. For example, a <code>GameSettings</code> ScriptableObject can hold tunable values (speeds, colors, etc.) in one place and be referenced by multiple objects. This makes it easier to tweak and debug values at runtime:contentReference[oaicite:12]{index=12}. It also facilitates modular design (e.g., using ScriptableObject events or variables) to reduce direct interdependence between systems.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://unity.com/how-to/architect-game-code-scriptable-objects#What-are-ScriptableObjects?"
+    ]
+  },
+  {
+    "title": "Use events to decouple systems (event-driven vs polling)",
+    "tags": ["scripting", "architecture"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing UnityEngine.Events;\npublic class Damageable : MonoBehaviour {\n    public UnityEvent<float, float> onDamaged; // currentHP, maxHP\n    public float maxHP = 100f;\n    private float hp;\n    void Start() {\n        hp = maxHP;\n    }\n    public void TakeDamage(float amount) {\n        hp -= amount;\n        onDamaged.Invoke(hp, maxHP);\n        if(hp <= 0) { Destroy(gameObject); }\n    }\n}\n\npublic class HealthUI : MonoBehaviour {\n    public Damageable player;\n    void OnEnable() {\n        player.onDamaged.AddListener(OnPlayerDamaged);\n    }\n    void OnPlayerDamaged(float current, float max) {\n        // Update UI, e.g., health bar fill = current/max\n    }\n}\n```",
+    "code_bad": "```csharp\n// Polling every frame to check for changes - inefficient coupling\nvoid Update() {\n    if(player.currentHP < lastHP) {\n        UpdateHealthUI();\n        lastHP = player.currentHP;\n    }\n}\n```",
+    "explanation": "Use an **event-driven** approach to have systems react only when something happens, instead of constantly polling. By invoking events (UnityEvent or C# events) from the source (e.g., a Damageable object) and having listeners (UI, audio, etc.) respond, you **decouple** the sender and receivers:contentReference[oaicite:13]{index=13}. The sender doesn't need to know who is listening, and listeners don't need to know who triggers the event:contentReference[oaicite:14]{index=14}. This leads to cleaner, modular code. In the example, the UI updates only when <code>TakeDamage</code> occurs, rather than checking health every frame.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://gamedev.stackexchange.com/questions/203084/decoupling-components#203085"
+    ]
+  },
+  {
+    "title": "Coroutines vs async/await for asynchronous tasks",
+    "tags": ["scripting", "async"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Unity 6.x supports Awaitable (async/await) for delay or async operations\nasync Awaitable DelayThenAction() {\n    // Example: wait 2 seconds, then perform an action\n    await Awaitable.WaitForSecondsAsync(2f);\n    Debug.Log(\"2 seconds passed - action executed\");\n}\n\n// To call it (from a MonoBehaviour context):\nvoid Start() {\n    DelayThenAction();\n}\n```",
+    "code_bad": "```csharp\n// Chaining coroutines to achieve delays (works, but less straightforward)\nIEnumerator DelayedAction() {\n    yield return new WaitForSeconds(2f);\n    Debug.Log(\"2 seconds passed - action executed\");\n}\n\nvoid Start() {\n    StartCoroutine(DelayedAction());\n}\n```",
+    "explanation": "As of Unity 2023.1+ (and in Unity 6), you can use C# <code>async/await</code> with Unity's <code>Awaitable</code> tasks for cleaner asynchronous code:contentReference[oaicite:15]{index=15}. The Awaitable API (e.g., <code>Awaitable.WaitForSecondsAsync</code>) lets you await delays or next frame without coroutines. In earlier versions or for broader compatibility, coroutines (<code>StartCoroutine</code>) are the traditional way to handle timed sequences. Both achieve similar results, but <code>async/await</code> can make code more readable for complex sequences or integrating non-Unity async operations (like web requests). Ensure to use <code>async</code> methods on Unity's main thread (or appropriate contexts) when interacting with UnityEngine objects.",
+    "performance_impact": "low",
+    "complexity": "advanced",
+    "references": [
+      "https://docs.unity3d.com/2023.2/Documentation/Manual/AwaitSupport.html#Await-support"
+    ]
+  },
+  {
+    "title": "Inject dependencies via references (avoid global lookups)",
+    "tags": ["scripting", "architecture"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\npublic class WeaponController : MonoBehaviour {\n    // Injected via Inspector or at runtime\n    public Weapon weapon;\n    void Attack() {\n        if(weapon != null) {\n            weapon.Fire();\n        }\n    }\n}\n\n// Assignment could be done in the Editor by dragging a Weapon object onto the field,\n// or dynamically: weaponController.weapon = FindObjectOfType<Weapon>(); (only once, not every use)\n```",
+    "code_bad": "```csharp\npublic class WeaponController : MonoBehaviour {\n    void Attack() {\n        // Every time Attack is called, it searches the scene for a Weapon - inefficient and tightly coupled\n        Weapon weapon = FindObjectOfType<Weapon>();\n        if(weapon != null) weapon.Fire();\n    }\n}\n\npublic class GlobalGameState {\n    public static int score;\n}\n```",
+    "explanation": "Rather than searching globally or using singletons for dependencies, **inject** references via the Inspector or initialization. In the good example, a <code>Weapon</code> reference is assigned to the controller, avoiding a runtime lookup each use. This promotes loose coupling and easier testing. Frequent calls to <code>Object.FindObjectOfType</code> or using global static state can lead to fragile, hard-to-maintain code and performance overhead. Unity's Inspector effectively acts as a simple Dependency Injection mechanism by letting you assign references in advance:contentReference[oaicite:16]{index=16}, so scripts don't have to find each other at runtime.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://gamedev.stackexchange.com/questions/203084/decoupling-components#203085"
+    ]
+  },
+  {
+    "title": "UI Toolkit: Reduce overdraw with proper batching",
+    "tags": ["ui", "performance", "ui-toolkit"],
+    "unity_versions": ["6000.2+"],
+    "code_good": "```csharp\n// Use USS (Unity Style Sheets) classes and data binding to update UI elements\nlabel.text = playerName;                     // bind data via script instead of rebuilding UXML\nlabel.AddToClassList(\"highlight\");         // toggle visual states with classes\n// Group UI updates and avoid inline style changes in loops\n```",
+    "code_bad": "```csharp\n// Inefficient: Rebuilding or altering UI hierarchy every frame\nuiDocument.rootVisualElement.Clear();\nCreateAllUIElementsAgain();\n\n// Avoid: Repeated inline style modifications which break batching\nsomeElement.style.width = newWidth; // doing this every frame can trigger layout recalculations\n```",
+    "explanation": "In Unity 6.0.2+, UI Toolkit received batching improvements, but you should still follow best practices to minimize UI rebuild costs. **Avoid inline styles** and frequent hierarchy changes at runtime:contentReference[oaicite:17]{index=17}. Instead, prepare elements in UXML or once at startup, then update values or use USS classes to change visuals. Inline style changes (via C#) on many elements cause per-element memory and re-styling overhead:contentReference[oaicite:18]{index=18}. By using classes and binding, the UI system can batch draw calls more efficiently, reducing overdraw and CPU layout calculations.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Manual/UIE-USS-WritingStyleSheets.html"
+    ]
+  },
+  {
+    "title": "Use TextMeshPro for text rendering",
+    "tags": ["ui", "text"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing TMPro;\npublic class ShowScore : MonoBehaviour {\n    public TMP_Text scoreLabel;\n    void UpdateScore(int score) {\n        scoreLabel.text = $\"Score: {score}\";\n    }\n}\n```",
+    "code_bad": "```csharp\n// Legacy UI Text component (lower quality and flexibility)\nusing UnityEngine.UI;\npublic Text scoreLabel; \n// Setting scoreLabel.text = \"Score:\"+score; works, but TextMeshPro offers better quality and features.\n```",
+    "explanation": "Always use **TextMeshPro (TMP)** over the legacy UI Text. TextMeshPro provides much higher-quality text rendering, advanced text styling (rich text, spacing, kerning, sprite glyphs for icons), and it does so at no additional performance cost:contentReference[oaicite:19]{index=19}:contentReference[oaicite:20]{index=20}. In fact, TMP generates the text mesh with the same two triangles per character as the old Text, but with improved visual fidelity:contentReference[oaicite:21]{index=21}. Unity now includes TMP by default (since 2018+). In short, \"TextMeshPro is the ultimate text solution for Unity... the perfect replacement for Unity's UI Text\":contentReference[oaicite:22]{index=22}.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://github.com/needle-mirror/com.unity.textmeshpro",
+      "https://www.reddit.com/r/Unity3D/comments/jogsus/text_vs_text_mesh_pro/"
+    ]
+  },
+  {
+    "title": "Editor scripting: Use MenuItem for editor utilities",
+    "tags": ["editor", "utility"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing UnityEditor;\npublic class EditorTools {\n    // Adds a menu command in the Unity Editor (under Tools menu)\n    [MenuItem(\"Tools/Clear Player Prefs\")]\n    private static void ClearPlayerPrefs() {\n        PlayerPrefs.DeleteAll();\n        Debug.Log(\"PlayerPrefs cleared\");\n    }\n}\n```",
+    "code_bad": "```csharp\n// No direct 'bad' code here, but without an Editor menu, a developer might manually clear\n// player prefs via code in Start() or rely on editing files, which is less efficient.\n\n// (For example, running PlayerPrefs.DeleteAll() in a Start() method of a scene as a hack.)\n```",
+    "explanation": "Leverage Unity's **Editor scripting** to create tools and shortcuts. The <code>[MenuItem]</code> attribute lets you add commands to the Unity Editor menus:contentReference[oaicite:23]{index=23}:contentReference[oaicite:24]{index=24}. In the example, a \"Tools > Clear Player Prefs\" menu item is created to quickly wipe saved data during development. This is cleaner than writing playmode code or manually deleting files. Editor scripts (in an <code>Editor</code> folder) can greatly speed up development by automating tasks, creating custom windows, or extending the inspector. Use them instead of doing these tasks in-game or by hand.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/MenuItem.html"
+    ]
+  },
+  {
+    "title": "Object Pooling vs frequent Instantiate/Destroy",
+    "tags": ["performance", "memory"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\npublic class BulletPool : MonoBehaviour {\n    public GameObject bulletPrefab;\n    private Queue<GameObject> pool = new Queue<GameObject>();\n    void Start() {\n        for(int i=0;i<100;i++) {\n            var obj = Instantiate(bulletPrefab);\n            obj.SetActive(false);\n            pool.Enqueue(obj);\n        }\n    }\n    public GameObject SpawnBullet(Vector3 position) {\n        if(pool.Count == 0) return null;\n        GameObject bullet = pool.Dequeue();\n        bullet.transform.position = position;\n        bullet.SetActive(true);\n        pool.Enqueue(bullet);\n        return bullet;\n    }\n}\n```",
+    "code_bad": "```csharp\n// Spawning and destroying bullets on the fly (garbage and CPU heavy)\nGameObject bullet = Instantiate(bulletPrefab, shootOrigin.position, Quaternion.identity);\n// ... use bullet\nDestroy(bullet, 2f); // destroy after 2 seconds\n```",
+    "explanation": "If you need many similar objects (projectiles, enemies, etc.), **object pooling** can significantly improve performance. Instantiating and Destroying GameObjects at runtime is relatively expensive and generates garbage for the GC:contentReference[oaicite:25]{index=25}. Instead, instantiate a pool of objects upfront and reuse them by toggling active state. In a bullet hell example, pooling hundreds of bullets upfront boosted the game from an unplayable few FPS to hundreds of FPS:contentReference[oaicite:26]{index=26}. Pooling trades a bit of memory for far less CPU and GC overhead during gameplay:contentReference[oaicite:27]{index=27}. Use pooling for frequently reused objects to avoid frame stutters from excessive allocations and garbage collection.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://gamedev.stackexchange.com/questions/148275/why-should-i-always-consider-creating-and-using-object-pools-instead-of-instanti#148276"
+    ]
+  },
+  {
+    "title": "Cache component references to avoid per-frame lookups",
+    "tags": ["performance"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\npublic class Thruster : MonoBehaviour {\n    private Rigidbody rb;\n    void Awake() {\n        rb = GetComponent<Rigidbody>(); // cache reference once\n    }\n    void Update() {\n        if(Input.GetKey(KeyCode.Space)) {\n            rb.AddForce(Vector3.up * 5f);\n        }\n    }\n}\n```",
+    "code_bad": "```csharp\npublic class Thruster : MonoBehaviour {\n    void Update() {\n        // Uncached - GetComponent called every frame (unnecessary overhead)\n        Rigidbody rb = GetComponent<Rigidbody>();\n        if(Input.GetKey(KeyCode.Space)) {\n            rb.AddForce(Vector3.up * 5f);\n        }\n    }\n}\n```",
+    "explanation": "Calling <code>GetComponent</code> or similar lookups every frame can add up. It's about **4–5× slower** than using a cached reference:contentReference[oaicite:28]{index=28} (though on modern hardware even 1e6 calls is ~60 ms:contentReference[oaicite:29]{index=29}). Still, it's best practice to cache components in <code>Awake/Start</code> and reuse them. This reduces needless native-engine calls each frame. The bad example repeatedly searches for the Rigidbody on the same object every Update. The good example fetches it once. Similarly, avoid frequent <code>FindObjectOfType</code> or <code>FindGameObjectWithTag</code> in Update; do those once or maintain references for objects that persist.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://illogika-studio.gitbooks.io/unity-best-practices/content/performance-benchmarks/getcomponent-versus-cached-component.html"
+    ]
+  },
+  {
+    "title": "Use CompareTag instead of string comparisons for tags",
+    "tags": ["performance"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nvoid OnTriggerEnter(Collider other) {\n    if(other.CompareTag(\"Enemy\")) {\n        TakeDamage(10);\n    }\n}\n```",
+    "code_bad": "```csharp\nvoid OnTriggerEnter(Collider other) {\n    if(other.gameObject.tag == \"Enemy\") {\n        TakeDamage(10);\n    }\n}\n```",
+    "explanation": "Use <code>CompareTag</code> for tag checks. It is more efficient and **allocates no memory**. The property <code>GameObject.tag</code> internally allocates a new string when accessed:contentReference[oaicite:30]{index=30}. This can create garbage if used frequently (e.g., in physics callbacks). <code>CompareTag</code> checks the tag against the provided string without allocation. It’s also a bit safer (Unity will warn if you CompareTag with an undefined tag). This is a small optimization but can reduce GC spikes and string comparisons if you have many tag checks.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://blog.jetbrains.com/dotnet/2019/02/28/performance-inspections-unity-code-rider/#:~:text=GameObject.tag-,CompareTag,-without%20any%20allocations"
+    ]
+  },
+  {
+    "title": "Load scenes asynchronously to avoid frame stalls",
+    "tags": ["scene", "loading"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Start loading the scene in the background\nAsyncOperation op = SceneManager.LoadSceneAsync(\"Level2\");\nop.allowSceneActivation = false;\n// ... (possibly show loading UI while op.progress < 0.9f)\n// When ready to activate:\nop.allowSceneActivation = true;\n```",
+    "code_bad": "```csharp\n// Synchronous scene load - freezes game until done\nSceneManager.LoadScene(\"Level2\");\n```",
+    "explanation": "Use <code>LoadSceneAsync</code> to load new scenes without freezing the game. A synchronous <code>LoadScene</code> will load the next scene **in a single frame**, causing a noticeable hitch or pause:contentReference[oaicite:31]{index=31}. The async method loads in the background; you can even display a loading animation (which won't update during the final tiny activation step, but the loading progress can be shown). In Unity's async loading, the heavy asset loading is done over time while your game can continue running a loading screen, vastly improving perceived performance. Always prefer asynchronous scene loading for large scenes to keep your frame rate smooth.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://www.reddit.com/r/Unity3D/comments/13vqcnz/0_fps_using_scenemanagerloadscene_or/jenbz4x/"
+    ]
+  },
+  {
+    "title": "Persist singletons with DontDestroyOnLoad (avoid duplicates)",
+    "tags": ["scene", "lifecycle"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\npublic class AudioManager : MonoBehaviour {\n    private static AudioManager instance;\n    void Awake() {\n        if(instance != null && instance != this) {\n            Destroy(gameObject);\n            return;\n        }\n        instance = this;\n        DontDestroyOnLoad(gameObject);\n    }\n}\n```",
+    "code_bad": "```csharp\npublic class AudioManager : MonoBehaviour {\n    void Awake() {\n        DontDestroyOnLoad(gameObject);\n    }\n}\n// (If two AudioManager objects exist across scenes, both will persist, leading to duplicates.)\n```",
+    "explanation": "When using <code>DontDestroyOnLoad</code> for persistent managers (audio, game state, etc.), implement a singleton pattern to prevent multiple instances. The good example checks if an existing instance already exists and destroys the new one, ensuring only one persists across scenes:contentReference[oaicite:32]{index=32}. The bad example marks objects to not destroy without any check – if the original scene is loaded again, you'd get duplicates. Using a static instance or an identifier ensures you don't accumulate multiple copies of supposed singletons across scene loads:contentReference[oaicite:33]{index=33}.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://stackoverflow.com/questions/52708544/remove-dont-destroy-on-load#52708942"
+    ]
+  },
+  {
+    "title": "Avoid unnecessary material instances (use shared materials or GPU instancing)",
+    "tags": ["graphics", "performance"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nRenderer rend = GetComponent<Renderer>();\n// Option 1: modify a property on the shared material (affects all users of that material)\nrend.sharedMaterial.color = Color.red;\n// Option 2: use MaterialPropertyBlock for per-renderer tweaks without breaking batching\nMaterialPropertyBlock block = new MaterialPropertyBlock();\nblock.SetFloat(\"_GlowIntensity\", 1.5f);\nrend.SetPropertyBlock(block);\n```",
+    "code_bad": "```csharp\nRenderer rend = GetComponent<Renderer>();\n// This creates a unique material instance for this renderer, breaking batching\nrend.material.color = Color.red;\n```",
+    "explanation": "Accessing <code>Renderer.material</code> forces Unity to **create an instance** of the material for that renderer:contentReference[oaicite:34]{index=34}. This prevents static/dynamic batching and increases draw calls. Instead, if you want to change a material property for *all* objects using it, modify <code>sharedMaterial</code> (the original asset). If you need per-object variation (e.g., color), use GPU instancing or <code>MaterialPropertyBlock</code> to set per-renderer values without duplicating the material. This preserves batching. In short: avoid calling <code>renderer.material</code> unless you intentionally need a separate material. Unity's batching works best when many objects share one material.",
+    "performance_impact": "high",
+    "complexity": "advanced",
+    "references": [
+      "https://argos.vu/2018/04/squeezing-performance-out-of-your-unity-gear-vr-game/#Batching"
+    ]
+  },
+  {
+    "title": "Use server-authoritative network code (Netcode for GameObjects)",
+    "tags": ["multiplayer"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Using Unity Netcode for GameObjects (e.g., NGO 1.x)\npublic class PlayerStats : NetworkBehaviour {\n    public NetworkVariable<int> score = new NetworkVariable<int>(0); // synced to all clients\n    [ServerRpc]\n    public void SubmitScoreServerRpc(int points) {\n        if(!IsServer) return; // only run on server\n        score.Value += points; // server updates, clients get sync automatically\n    }\n}\n```",
+    "code_bad": "```csharp\npublic class PlayerStats : MonoBehaviour {\n    public int score = 0;\n    void Update() {\n        if(Input.GetKeyDown(KeyCode.P)) {\n            score += 10;\n            // this change won't sync to other players in a multiplayer game\n        }\n    }\n}\n```",
+    "explanation": "In a multiplayer context (using Unity's Netcode for GameObjects or similar), don't rely on client-side state changes to replicate. Instead, use **NetworkVariables** and RPCs so that the server authoritatively changes state and propagates it. The good example uses a <code>NetworkVariable</code>, which automatically syncs the <code>score</code> value to clients:contentReference[oaicite:35]{index=35}, and a [ServerRpc] for clients to request a score change. The bad example simply modifies a local variable — in a network game, other players/host won't know about this change. Always design networked gameplay such that the server (or host) is the source of truth and use the networking API to synchronize data and actions across clients.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs-multiplayer.unity3d.com/netcode/1.0.0/basics/networkvariable"
+    ]
+  },
+  {
+    "title": "Use NavMeshAgent for pathfinding",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nNavMeshAgent agent = GetComponent<NavMeshAgent>();\nagent.SetDestination(target.position);\nif(agent.remainingDistance < agent.stoppingDistance) {\n    // Arrived at destination, do something\n}\n```",
+    "code_bad": "```csharp\n// Manually moving an agent without pathfinding - will not avoid obstacles\nVector3 direction = (target.position - transform.position).normalized;\ntransform.position += direction * speed * Time.deltaTime;\n```",
+    "explanation": "Use Unity's built-in **NavMesh** system for AI navigation. A <code>NavMeshAgent</code> will calculate a path around obstacles on the NavMesh when you call <code>SetDestination</code>:contentReference[oaicite:36]{index=36}:contentReference[oaicite:37]{index=37}. This frees you from writing your own pathfinding. The agent also handles acceleration, deceleration, and stopping distance. The bad example simply moves toward the target in a straight line, which could ignore walls or cliffs. By contrast, a NavMeshAgent on a baked NavMesh knows how to find a valid path. In one line (<code>agent.destination = ...</code>), you get robust pathfinding that would otherwise require complex algorithms.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Manual/nav-BuildingNavMesh.html",
+      "https://docs.unity3d.com/ScriptReference/AI.NavMeshAgent.SetDestination.html"
+    ]
+  },
+  {
+    "title": "Frame-rate independent movement (use Time.deltaTime)",
+    "tags": ["scripting", "basics"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nvoid Update() {\n    // Move 5 units per second forward\n    float moveDistance = 5f * Time.deltaTime;\n    transform.Translate(Vector3.forward * moveDistance);\n}\n```",
+    "code_bad": "```csharp\nvoid Update() {\n    // Moves 5 units each frame (amount varies with FPS!)\n    transform.Translate(Vector3.forward * 5f);\n}\n```",
+    "explanation": "Always multiply movement or rotations by <code>Time.deltaTime</code> (or <code>Time.fixedDeltaTime</code> in FixedUpdate) to make them **frame-rate independent**. Using deltaTime converts a per-frame change into a per-second rate:contentReference[oaicite:38]{index=38}. For example, moving 5 units *per second* means 5 * Time.deltaTime each frame. In the bad code, 5 units per frame at 30 FPS vs 60 FPS results in double distance traveled at 60 FPS. Using deltaTime ensures consistency across hardware. Unity's docs explicitly call this out: \"If you add to a value every frame, multiply by Time.deltaTime to express it in units per second\":contentReference[oaicite:39]{index=39}.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/530/Documentation/ScriptReference/Time-deltaTime.html"
+    ]
+  },
+  {
+    "title": "Leverage C# Job System & Burst for heavy computations",
+    "tags": ["performance", "jobs"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing Unity.Jobs;\nusing Unity.Burst;\nusing Unity.Collections;\n[BurstCompile]\nstruct SumJob : IJob {\n    [ReadOnly] public NativeArray<int> values;\n    public NativeArray<int> result;\n    public void Execute() {\n        int sum = 0;\n        for(int i=0;i<values.Length;i++) sum += values[i];\n        result[0] = sum;\n    }\n}\n\n// Scheduling the job\nNativeArray<int> vals = new NativeArray<int>(100000, Allocator.TempJob);\nNativeArray<int> res = new NativeArray<int>(1, Allocator.TempJob);\nSumJob job = new SumJob { values = vals, result = res };\nJobHandle handle = job.Schedule();\nhandle.Complete();\nDebug.Log($\"Sum = {res[0]}\");\nvals.Dispose(); res.Dispose();\n```",
+    "code_bad": "```csharp\n// Summing a huge array on the main thread (will stall the frame if very large)\nint sum = 0;\nfor(int i=0; i<values.Length; i++) {\n    sum += values[i];\n}\n```",
+    "explanation": "The Unity C# Job System allows you to offload work to multiple CPU cores easily:contentReference[oaicite:40]{index=40}. In the example, a Burst-compiled job computes a sum in parallel. Using <code>Job.Schedule()</code>, Unity will run that code on a worker thread (or threads), allowing the main thread to continue. Burst compiles the job to highly optimized native code, often far faster than C# on the main thread. This approach is ideal for heavy math, AI, or processing large data sets off the main thread. By utilizing all available cores, you can achieve significant performance improvements vs. doing everything on the main thread:contentReference[oaicite:41]{index=41}. (Note: Jobs work with Unity's native containers like NativeArray and require careful memory management but offer deterministic threading with safety checks.)",
+    "performance_impact": "high",
+    "complexity": "advanced",
+    "references": [
+      "https://docs.unity3d.com/Manual/job-system-overview.html"
+    ]
+  },
+  {
+    "title": "Remove empty Unity event methods",
+    "tags": ["performance", "scripting"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// (No Update method if not needed)\n// The MonoBehaviour will not receive Update calls, saving some overhead.\n```",
+    "code_bad": "```csharp\npublic class Example : MonoBehaviour {\n    void Update() {\n        // Intentionally left empty\n    }\n}\n```",
+    "explanation": "If a MonoBehaviour doesn't actually need an Update (or FixedUpdate/OnGUI, etc.), **remove the method**. Unity still calls these message functions on every enabled object each frame, even if empty, which incurs a small overhead. While one empty Update is negligible, thousands of them add up. Tools like Rider/Analyzer will flag empty Unity event functions as redundant:contentReference[oaicite:42]{index=42}. Cleaning them up helps the engine avoid unnecessary native-to-managed calls.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://blog.jetbrains.com/dotnet/2019/02/28/performance-inspections-unity-code-rider/#unity-event-functions"
+    ]
+  },
+  {
+    "title": "Use Addressables for large assets instead of Resources",
+    "tags": ["scene", "assets"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing UnityEngine.AddressableAssets;\nusing UnityEngine.ResourceManagement.AsyncOperations;\n// Asynchronously load an asset by address\nAddressables.LoadAssetAsync<GameObject>(\"Enemies/Goblin\").Completed += OnLoadDone;\n\nvoid OnLoadDone(AsyncOperationHandle<GameObject> handle) {\n    if(handle.Status == AsyncOperationStatus.Succeeded) {\n        GameObject goblinPrefab = handle.Result;\n        Instantiate(goblinPrefab);\n    }\n}\n```",
+    "code_bad": "```csharp\n// Synchronously loading from Resources (can cause hitches and memory overhead)\nGameObject goblinPrefab = Resources.Load<GameObject>(\"Goblin\");\nInstantiate(goblinPrefab);\n```",
+    "explanation": "For better scalability and memory management, use the **Addressables** system instead of the old Resources folder. Addressables let you load assets on demand asynchronously and handle dependencies via asset bundles. The Resources system, by contrast, often loads too much into memory and is considered a legacy approach for large projects:contentReference[oaicite:43]{index=43}. Addressables also make it easier to implement content updates or DLC without new app builds. In summary: Resources is easy for small prototypes, but for complex projects Unity recommends Addressables (which essentially automates asset bundle usage) for robust asset loading:contentReference[oaicite:44]{index=44}.",
+    "performance_impact": "medium",
+    "complexity": "advanced",
+    "references": [
+      "https://stackoverflow.com/questions/58433666/addresables-vs-resources-vs-asset-bundles#58433985"
+    ]
+  },
+  {
+    "title": "Rigidbody.MovePosition for kinematic step movement",
+    "tags": ["physics", "movement"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Smooth, collision-aware stepping for kinematic RBs in FixedUpdate\npublic class KinematicStepper : MonoBehaviour {\n    public float speed = 5f; Rigidbody rb;\n    void Awake() => rb = GetComponent<Rigidbody>();\n    void FixedUpdate() {\n        Vector3 input = new(Input.GetAxisRaw(\"Horizontal\"), 0, Input.GetAxisRaw(\"Vertical\"));\n        Vector3 target = rb.position + input.normalized * speed * Time.fixedDeltaTime;\n        rb.MovePosition(target);\n    }\n}\n```",
+    "code_bad": "```csharp\n// Teleports each frame; violates physics interpolation/collision expectations\nvoid Update(){ transform.position += transform.forward * 5f * Time.deltaTime; }\n```",
+    "explanation": "Use MovePosition in FixedUpdate for kinematic rigidbodies to cooperate with the physics loop and interpolation; direct Transform changes bypass the solver and can cause tunneling or jitter.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rigidbody.MovePosition.html",
+      "https://discussions.unity.com/t/rigidbody-moveposition-vs-transform-position/872893"
+    ]
+  },
+  {
+    "title": "Choose the right ForceMode (Impulse/Acceleration/VelocityChange)",
+    "tags": ["physics", "forces"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Examples: pick the most appropriate ForceMode\nrb.AddForce(dir * impulse, ForceMode.Impulse);        // instant kick (mass-scaled)\nrb.AddForce(dir * accel,   ForceMode.Acceleration);   // steady accel (ignores mass)\nrb.AddForce(dir * deltaV,  ForceMode.VelocityChange); // instant delta-v (ignores mass)\n```",
+    "code_bad": "```csharp\n// Using default Force (per-frame) when you intended an instantaneous kick\nrb.AddForce(dir * 50f); // wrong intent -> sluggish result\n```",
+    "explanation": "ForceMode changes how AddForce integrates: Impulse applies an instant momentum change (mass-scaled), Acceleration adds acceleration (ignores mass), VelocityChange sets an instant velocity delta (ignores mass). Choose based on gameplay feel and physical correctness.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/ForceMode.Impulse.html",
+      "https://docs.unity3d.com/ScriptReference/Rigidbody.AddForce.html"
+    ]
+  },
+  {
+    "title": "Prevent tunneling with Continuous/ContinuousDynamic CCD",
+    "tags": ["physics", "collision"],
+    "unity_versions": ["6000.2+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Fast projectile vs. dynamic targets\nprojectileRb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;\n// Potential impactees\ntargetRb.collisionDetectionMode = CollisionDetectionMode.Continuous;\n```",
+    "code_bad": "```csharp\n// Discrete can miss collisions at high speeds\nprojectileRb.collisionDetectionMode = CollisionDetectionMode.Discrete;\n```",
+    "explanation": "Sweep-based CCD modes reduce missed collisions for fast movers. Use ContinuousDynamic on the fast body and Continuous on others it can hit; Discrete is cheapest but can tunnel at high speeds.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/6000.2/Documentation/Manual/ContinuousCollisionDetection.html",
+      "https://docs.unity3d.com/ScriptReference/CollisionDetectionMode.ContinuousDynamic.html"
+    ]
+  },
+  {
+    "title": "Input System: runtime rebinding (action-based)",
+    "tags": ["input"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing UnityEngine.InputSystem;\npublic static class RebindUtil {\n  public static void StartRebind(InputAction action, System.Action onComplete){\n    action.Disable();\n    action.PerformInteractiveRebinding()\n      .OnComplete(op=>{ op.Dispose(); action.Enable(); onComplete?.Invoke(); })\n      .Start();\n  }\n}\n```",
+    "code_bad": "```csharp\n// Legacy Input Manager is not rebind-friendly at runtime\nfloat x = Input.GetAxis(\"Horizontal\");\n```",
+    "explanation": "Use InputAction rebinding APIs to capture a new control at runtime without custom parsing. Disable the action during the operation, then re-enable on completion.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.inputsystem@1.0/api/UnityEngine.InputSystem.InputActionRebindingExtensions.RebindingOperation.html",
+      "https://unity.com/features/input-system"
+    ]
+  },
+  {
+    "title": "ScriptableObject event channel (decouple broadcast/listen)",
+    "tags": ["scripting", "architecture"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n[CreateAssetMenu(menuName=\"Events/FloatEvent\")] public class FloatEvent : ScriptableObject {\n  public System.Action<float> OnRaised; public void Raise(float v)=>OnRaised?.Invoke(v);\n}\npublic class HPSource : MonoBehaviour { public FloatEvent hpChanged; float hp=100;\n  void Damage(float d){ hp-=d; hpChanged.Raise(hp); }\n}\npublic class HPUI : MonoBehaviour { public FloatEvent hpChanged;\n  void OnEnable()=>hpChanged.OnRaised+=UpdateUI; void OnDisable()=>hpChanged.OnRaised-=UpdateUI;\n  void UpdateUI(float hp){ /* update bar */ }\n}\n```",
+    "code_bad": "```csharp\n// Tight coupling: UI polls source every frame\nvoid Update(){ /* if (hp != lastHp) ... */ }\n```",
+    "explanation": "ScriptableObject channels let you broadcast without hard references; listeners subscribe/unsubscribe cleanly, avoiding polling and scene lookups.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://unity.com/how-to/scriptableobjects-event-channels-game-code",
+      "https://docs.unity3d.com/6000.2/Documentation/Manual/class-ScriptableObject.html"
+    ]
+  },
+  {
+    "title": "Async/await with Awaitable vs. coroutines (simple delay)",
+    "tags": ["scripting", "async"],
+    "unity_versions": ["6000.1+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing UnityEngine; using UnityEngine.AI;\npublic class Demo : MonoBehaviour {\n  async void Start(){\n    await Awaitable.WaitForSecondsAsync(1.5f);\n    Debug.Log(\"After delay on main thread\");\n  }\n}\n```",
+    "code_bad": "```csharp\n// Works, but chains of coroutines can get unwieldy\nIEnumerator Delay(){ yield return new WaitForSeconds(1.5f); Debug.Log(\"After\"); }\n```",
+    "explanation": "Unity’s Awaitable enables async/await patterns on the main thread for timers/next-frame waits, often yielding clearer flow than multiple nested coroutines.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/6000.1/Documentation/Manual/async-await-support.html",
+      "https://discussions.unity.com/t/on-async-await-with-awaitables-as-a-coroutine-replacement/1554090"
+    ]
+  },
+  {
+    "title": "UGUI: split large Canvases to avoid full rebuilds",
+    "tags": ["ui", "performance", "ugui"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Guideline (no-code):\n// - Separate dynamic (chat log, counters) into its own Canvas.\n// - Keep static HUD elements on another Canvas.\n// - Avoid frequent layout changes across many children.\n```",
+    "code_bad": "```csharp\n// One giant Canvas with constantly changing children (texts/layout)\n// => triggers wide Canvas rebuilds and breaks batches\n```",
+    "explanation": "UGUI marks an entire Canvas dirty when many child properties change; splitting dynamic vs. static sections reduces rebuild scope and draw call churn.",
+    "performance_impact": "high",
+    "complexity": "beginner",
+    "references": [
+      "https://create.unity.com/Unity-UI-optimization-tips",
+      "https://unity.com/how-to/unity-ui-optimization-tips"
+    ]
+  },
+  {
+    "title": "TMP: avoid Auto Size on many labels at runtime",
+    "tags": ["ui", "text", "performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Use a measured font size and disable Auto Size in production UI\nTMP_Text label; void SetText(string s){ label.enableAutoSizing = false; label.fontSize = 28; label.text = s; }\n```",
+    "code_bad": "```csharp\n// Auto Size on dozens of dynamic labels -> repeated layout passes per change\nlabel.enableAutoSizing = true; label.text = someDynamicString;\n```",
+    "explanation": "TMP Auto Size computes best-fit via extra layout passes; great for authoring/tests but expensive when many texts change frequently.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://discussions.unity.com/t/textmeshpro-precull-dorebuilds-performance/762282",
+      "https://discussions.unity.com/t/tmp-autosize-performance-vs-uguis-bestfit/697683"
+    ]
+  },
+  {
+    "title": "PropertyDrawer: validate fields inline in the Inspector",
+    "tags": ["editor", "property-drawer"],
+    "unity_versions": ["6000.2+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Editor/Range01Drawer.cs\nusing UnityEditor; using UnityEngine;\npublic class Range01Attribute : PropertyAttribute {}\n[CustomPropertyDrawer(typeof(Range01Attribute))]\npublic class Range01Drawer : PropertyDrawer {\n  public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label){\n    if(prop.propertyType==SerializedPropertyType.Float)\n      prop.floatValue = EditorGUI.Slider(pos,label,prop.floatValue,0f,1f);\n    else EditorGUI.PropertyField(pos,prop,label);\n  }\n}\n```",
+    "code_bad": "```csharp\n// No validation -> invalid values slip into content builds\n```",
+    "explanation": "PropertyDrawers let you enforce constraints/UX in the Inspector without custom components. Keep editor code in an Editor folder.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/6000.2/Documentation/Manual/editor-PropertyDrawers.html",
+      "https://docs.unity3d.com/6000.2/Documentation/ScriptReference/PropertyDrawer.OnGUI.html"
+    ]
+  },
+  {
+    "title": "Custom Inspector with UI Toolkit (Editor)",
+    "tags": ["editor", "ui-toolkit"],
+    "unity_versions": ["6000.1+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Editor/MyComponentEditor.cs\nusing UnityEditor; using UnityEngine.UIElements;\n[CustomEditor(typeof(MyComponent))]\npublic class MyComponentEditor : Editor {\n  public override VisualElement CreateInspectorGUI(){\n    var root = new VisualElement();\n    root.Add(new Label(\"MyComponent (custom)\"));\n    root.Add(new PropertyField(serializedObject.FindProperty(\"speed\")));\n    return root;\n  }\n}\n```",
+    "code_bad": "```csharp\n// Rely on default Inspector when authoring needs custom controls/validation\n```",
+    "explanation": "UI Toolkit-based inspectors provide flexible, fast editor UIs and avoid IMGUI boilerplate. Return a VisualElement tree with bound PropertyFields.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/6000.1/Documentation/Manual/UIE-HowTo-CreateCustomInspector.html"
+    ]
+  },
+  {
+    "title": "EditorWindow utility panel (hot-reload & updates)",
+    "tags": ["editor", "tools"],
+    "unity_versions": ["6000.1+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Editor/QuickTools.cs\nusing UnityEditor; using UnityEngine; using UnityEngine.UIElements;\npublic class QuickTools : EditorWindow {\n  [MenuItem(\"Tools/Quick Tools\")] static void Open(){ GetWindow<QuickTools>(\"Quick Tools\"); }\n  void CreateGUI(){ rootVisualElement.Add(new Button(()=>Debug.Log(\"Ping\")){ text=\"Ping\" }); }\n  void Update(){ /* editor-time polling if needed */ }\n}\n```",
+    "code_bad": "```csharp\n// Sprinkling debug/utility code into playmode MonoBehaviours instead of an editor tool\n```",
+    "explanation": "Pack repeatable workflows into EditorWindows. CreateGUI builds the UI Toolkit tree; Update is called for visible windows via EditorApplication.update.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/6000.1/Documentation/Manual/UIE-HowTo-CreateEditorWindow.html",
+      "https://docs.unity3d.com/6000.1/Documentation/ScriptReference/EditorWindow.Update.html"
+    ]
+  },
+  {
+    "title": "SRP Batcher + MaterialPropertyBlock (preserve batching)",
+    "tags": ["graphics", "performance", "urp/hdrp"],
+    "unity_versions": ["6000.1+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Per-renderer tweak without breaking batches\nvar rend = GetComponent<Renderer>();\nvar mpb = new MaterialPropertyBlock();\nmpb.SetColor(\"_Tint\", Color.cyan);\nrend.SetPropertyBlock(mpb);\n```",
+    "code_bad": "```csharp\n// Creates unique material instance -> breaks batching\nGetComponent<Renderer>().material.SetColor(\"_Tint\", Color.cyan);\n```",
+    "explanation": "Enable SRP Batcher in URP/HDRP and avoid per-renderer .material edits. Use MaterialPropertyBlock for per-object differences while keeping materials shared.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/6000.2/Documentation/Manual/SRPBatcher.html",
+      "https://docs.unity3d.com/ScriptReference/Renderer.SetPropertyBlock.html",
+      "https://docs.unity3d.com/ScriptReference/MaterialPropertyBlock.html"
+    ]
+  },
+  {
+    "title": "Addressables: release handles to free memory",
+    "tags": ["scene", "assets", "addressables"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nAsyncOperationHandle<GameObject> handle;\nhandle = Addressables.LoadAssetAsync<GameObject>(\"Enemies/Goblin\");\nhandle.Completed += op => {\n  if(op.Status==AsyncOperationStatus.Succeeded){ /* use op.Result */ }\n};\n// later when no longer needed\nAddressables.Release(handle);\n```",
+    "code_bad": "```csharp\n// Leaks: never release operation handles -> retained memory/bundles\n```",
+    "explanation": "Keep and Release the AsyncOperationHandle when done; releasing decrements ref-counts for the asset and its bundles, allowing memory to be reclaimed.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.addressables@1.20/manual/AddressableAssetsAsyncOperationHandle.html",
+      "https://docs.unity3d.com/Packages/com.unity.addressables@1.15/manual/AddressableAssetsAsyncOperationHandle.html"
+    ]
+  },
+  {
+    "title": "Additive scene loading + clean unload",
+    "tags": ["scene", "loading"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Load additive, then unload when done\nvar load = SceneManager.LoadSceneAsync(\"LevelChunk_A\", LoadSceneMode.Additive);\nawait load;\n// ... use chunk ...\nawait SceneManager.UnloadSceneAsync(\"LevelChunk_A\");\n```",
+    "code_bad": "```csharp\n// Blocking load & implicit unload assumptions\nSceneManager.LoadScene(\"LevelChunk_A\");\n```",
+    "explanation": "Use additive async loads for streaming content; explicitly unload with UnloadSceneAsync to destroy objects and free the scene without freezing gameplay.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/SceneManagement.SceneManager.LoadSceneAsync.html",
+      "https://docs.unity3d.com/ScriptReference/SceneManagement.SceneManager.UnloadSceneAsync.html"
+    ]
+  },
+  {
+    "title": "NavMesh: area costs to steer agents",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing UnityEngine.AI;\nint water = NavMesh.GetAreaFromName(\"Water\");\nNavMesh.SetAreaCost(water, 5f); // globally discourage water\n// or per-agent: agent.SetAreaCost(water, 10f);\n```",
+    "code_bad": "```csharp\n// Single uniform cost -> agents take shortest (not best) paths through hazards\n```",
+    "explanation": "Adjust area costs so pathfinding prefers safer/cheaper regions; use global NavMesh.SetAreaCost or per-agent SetAreaCost/areaMask for fine control.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/6000.0/Documentation/ScriptReference/AI.NavMesh.SetAreaCost.html",
+      "https://docs.unity3d.com/550/Documentation/Manual/nav-AreasAndCosts.html"
+    ]
+  },
+  {
+    "title": "Netcode: NetworkTransform for transform sync (don’t DIY in Update)",
+    "tags": ["multiplayer", "netcode"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Add NetworkObject + NetworkTransform components\n// Drive movement on server/owner; component replicates to others\n[RequireComponent(typeof(Unity.Netcode.Components.NetworkTransform))]\npublic class NetMover : Unity.Netcode.NetworkBehaviour {\n  public float speed = 4f;\n  void Update(){ if(!IsOwner) return; transform.Translate(Vector3.forward*speed*Time.deltaTime); }\n}\n```",
+    "code_bad": "```csharp\n// Local-only transform writes; other clients never receive updates\nvoid Update(){ transform.position += Vector3.right * Time.deltaTime; }\n```",
+    "explanation": "Use NetworkTransform (or a custom sync) to replicate motion instead of local-only Transform changes. It reads the Transform and interpolates on clients.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.netcode.gameobjects@1.0/api/Unity.Netcode.Components.NetworkTransform.html",
+      "https://docs.unity3d.com/Packages/com.unity.netcode.gameobjects@2.0/api/Unity.Netcode.Components.NetworkTransform.html"
+    ]
+  },
+  {
+    "title": "Use Rigidbody interpolation for smooth visuals",
+    "tags": ["physics", "movement"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Apply in Awake or via Inspector\nRigidbody rb = GetComponent<Rigidbody>();\nrb.interpolation = RigidbodyInterpolation.Interpolate;\n```",
+    "code_bad": "```csharp\n// Default None leads to stuttery visuals at low framerates\nrb.interpolation = RigidbodyInterpolation.None;\n```",
+    "explanation": "Interpolate blends visual transform updates between physics ticks, making Rigidbody motion appear smooth even if FixedUpdate rate is low. Without it, rigidbodies can look jittery on displays with high refresh or low physics step rates.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rigidbody-interpolation.html"
+    ]
+  },
+  {
+    "title": "Rigidbody.Sleep and WakeUp for optimization",
+    "tags": ["physics", "performance"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Put object to sleep when inactive\ngoingRb.Sleep();\n// Wake it if you need it to simulate again\ngoingRb.WakeUp();\n```",
+    "code_bad": "```csharp\n// Leaving hundreds of idle rigidbodies active -> unnecessary solver cost\n```",
+    "explanation": "Sleeping tells Unity’s physics engine to skip processing a Rigidbody until it’s moved or collided. This reduces solver work when objects are at rest. Avoid manual WakeUp unless needed — Unity auto-wakes on contact/force.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rigidbody.Sleep.html"
+    ]
+  },
+  {
+    "title": "Use InputAction callbacks instead of polling",
+    "tags": ["input"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\npublic class JumpHandler : MonoBehaviour {\n  public InputActionReference jumpAction;\n  void OnEnable(){ jumpAction.action.performed += OnJump; jumpAction.action.Enable(); }\n  void OnDisable(){ jumpAction.action.performed -= OnJump; jumpAction.action.Disable(); }\n  void OnJump(InputAction.CallbackContext ctx){ Debug.Log(\"Jump!\"); }\n}\n```",
+    "code_bad": "```csharp\n// Polling every frame is less efficient and harder to extend\nvoid Update(){ if(Input.GetKeyDown(KeyCode.Space)) Debug.Log(\"Jump!\"); }\n```",
+    "explanation": "Callbacks fire only on relevant input events, reducing per-frame checks and enabling cleaner separation of input handling.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.inputsystem@1.0/manual/Actions.html"
+    ]
+  },
+  {
+    "title": "Coroutine cancellation via StopCoroutine or StopAllCoroutines",
+    "tags": ["scripting", "async"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nCoroutine active;\nvoid Start(){ active = StartCoroutine(FadeOut()); }\nvoid OnDisable(){ if(active!=null) StopCoroutine(active); }\n```",
+    "code_bad": "```csharp\n// Orphaned coroutines keep running after object is disabled/destroyed\nStartCoroutine(FadeOut());\n```",
+    "explanation": "Always store coroutine handles and stop them when no longer valid, otherwise they continue running and can throw errors when referencing destroyed objects.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/MonoBehaviour.StopCoroutine.html"
+    ]
+  },
+  {
+    "title": "Use SceneManager.sceneLoaded event instead of polling",
+    "tags": ["scene", "events"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing UnityEngine.SceneManagement;\nvoid OnEnable(){ SceneManager.sceneLoaded += OnSceneLoaded; }\nvoid OnDisable(){ SceneManager.sceneLoaded -= OnSceneLoaded; }\nvoid OnSceneLoaded(Scene scene, LoadSceneMode mode){ Debug.Log($\"Loaded {scene.name}\"); }\n```",
+    "code_bad": "```csharp\n// Polling each frame for active scene\nvoid Update(){ if(SceneManager.GetActiveScene().name==\"Game\") {...} }\n```",
+    "explanation": "Use the sceneLoaded event to react immediately when a scene finishes loading. Polling each frame wastes CPU cycles and is less reliable.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/SceneManagement.SceneManager-sceneLoaded.html"
+    ]
+  },
+  {
+    "title": "NavMeshAgent: Stop and Resume",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nNavMeshAgent agent;\nvoid Start(){ agent=GetComponent<NavMeshAgent>(); agent.SetDestination(goal.position); }\nvoid Pause(){ agent.isStopped = true; }\nvoid Resume(){ agent.isStopped = false; }\n```",
+    "code_bad": "```csharp\n// Setting destination to current pos to fake pause\nagent.SetDestination(agent.transform.position);\n```",
+    "explanation": "Use isStopped to cleanly pause/resume pathfinding without recalculating fake destinations. It preserves agent state and path data.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/AI.NavMeshAgent-isStopped.html"
+    ]
+  },
+  {
+    "title": "Use Physics.IgnoreCollision for projectiles",
+    "tags": ["physics", "collision"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Prevent self-collision with shooter\nPhysics.IgnoreCollision(projectileCol, shooterCol);\n```",
+    "code_bad": "```csharp\n// Adding custom tag checks every collision -> unnecessary overhead\nvoid OnCollisionEnter(Collision c){ if(c.gameObject==shooter) return; }\n```",
+    "explanation": "Physics.IgnoreCollision disables collision detection between two colliders upfront, avoiding per-frame checks and OnCollision calls.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Physics.IgnoreCollision.html"
+    ]
+  },
+  {
+    "title": "UI Toolkit: bind SerializedObject for inspector-like UIs",
+    "tags": ["ui", "ui-toolkit"],
+    "unity_versions": ["6000.2+"],
+    "code_good": "```csharp\n// In EditorWindow or custom inspector\nvar so = new SerializedObject(target);\nvar prop = so.FindProperty(\"speed\");\nvar field = new PropertyField(prop);\nroot.Add(field);\n```",
+    "code_bad": "```csharp\n// Manually updating fields each frame via Update -> inefficient\n```",
+    "explanation": "SerializedObject binding auto-updates UI elements when values change, like the inspector. Avoid manually syncing UI every frame.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-Binding.html"
+    ]
+  },
+  {
+    "title": "Jobs: use NativeArray with Dispose",
+    "tags": ["performance", "jobs"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar arr = new NativeArray<int>(100, Allocator.TempJob);\n// ... use in job\narr.Dispose();\n```",
+    "code_bad": "```csharp\n// Forgetting Dispose -> memory leak in native heap\n```",
+    "explanation": "Always dispose of native collections (NativeArray, NativeList, etc.) when done. Leaks persist beyond GC, as memory is unmanaged.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Unity.Collections.NativeArray.Dispose.html"
+    ]
+  },
+  {
+    "title": "Netcode: Use ServerRpc & ClientRpc correctly",
+    "tags": ["multiplayer", "netcode"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[ServerRpc]\nvoid DamageServerRpc(int dmg){ if(!IsServer) return; hp-=dmg; if(hp<=0) Die(); }\n[ClientRpc]\nvoid DieClientRpc(){ // play VFX locally }\n```",
+    "code_bad": "```csharp\n// Client tries to directly modify shared state -> desync\nvoid Update(){ if(Input.GetKeyDown(KeyCode.K)) hp=0; }\n```",
+    "explanation": "ServerRpc sends client requests to the server for authority, and ClientRpc propagates results. Direct client-side state edits won’t sync and break authority.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs-multiplayer.unity3d.com/netcode/current/basics/rpcs"
+    ]
+  },
+  {
+    "title": "Use Rigidbody constraints to lock unused axes",
+    "tags": ["physics", "stability"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Freeze rotation to prevent tipping over\nRigidbody rb = GetComponent<Rigidbody>();\nrb.constraints = RigidbodyConstraints.FreezeRotation;\n```",
+    "code_bad": "```csharp\n// Letting physics rotate the object on all axes -> unintended flips\n```",
+    "explanation": "Constraining unused axes improves stability and reduces unnecessary solver work. For example, locking rotation on a 2D-style character prevents tipping.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rigidbody-constraints.html"
+    ]
+  },
+  {
+    "title": "Use Physics layers & queries instead of tag checks",
+    "tags": ["physics", "collision"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\n// Configure Layer Collision Matrix in Project Settings\n// Use layerMask in raycasts\nPhysics.Raycast(ray, out hit, 100f, LayerMask.GetMask(\"Enemy\"));\n```",
+    "code_bad": "```csharp\n// Filtering hits by string tag after every collision\nif(hit.collider.CompareTag(\"Enemy\")) {...}\n```",
+    "explanation": "Layer masks let the physics engine skip irrelevant objects up front. Tag checks happen after a hit and can waste collision queries.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Manual/LayerBasedCollision.html"
+    ]
+  },
+  {
+    "title": "Input System: composite bindings for WASD/Arrow keys",
+    "tags": ["input"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// In Input Actions asset, create a 2D Vector composite\n// Up=W/ArrowUp, Down=S/ArrowDown, Left=A/ArrowLeft, Right=D/ArrowRight\nVector2 move = moveAction.ReadValue<Vector2>();\n```",
+    "code_bad": "```csharp\n// Two separate axes -> harder to support multiple schemes\nfloat h = Input.GetAxis(\"Horizontal\");\nfloat v = Input.GetAxis(\"Vertical\");\n```",
+    "explanation": "Composite bindings unify multiple keys/axes into one Vector2, simplifying code and making rebinding easier.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.inputsystem@1.0/manual/Composites.html"
+    ]
+  },
+  {
+    "title": "ScriptableObject as runtime data container",
+    "tags": ["scripting", "architecture"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[CreateAssetMenu]\npublic class PlayerData : ScriptableObject {\n  public int score;\n}\n// Multiple scenes can share this SO for consistent state\n```",
+    "code_bad": "```csharp\n// Scene-only MonoBehaviour field loses data across loads\npublic int score;\n```",
+    "explanation": "SO instances persist as assets and can hold runtime-modifiable data shared across scenes. Avoid using scene-only MonoBehaviours for global state.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://unity.com/how-to/architect-game-code-scriptable-objects"
+    ]
+  },
+  {
+    "title": "Use WaitUntil/WaitWhile for coroutine conditions",
+    "tags": ["scripting", "async"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nyield return new WaitUntil(()=> enemy==null);\nDebug.Log(\"Enemy destroyed\");\n```",
+    "code_bad": "```csharp\n// Manual polling loop\nwhile(enemy!=null){ yield return null; }\n```",
+    "explanation": "Yield instructions encapsulate common conditions and improve readability, avoiding boilerplate loops in coroutines.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/WaitUntil.html"
+    ]
+  },
+  {
+    "title": "Canvas batching: avoid world-space UI for HUDs",
+    "tags": ["ui", "performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Use Screen Space - Overlay for main HUD\nCanvas canvas = hudCanvas;\ncanvas.renderMode = RenderMode.ScreenSpaceOverlay;\n```",
+    "code_bad": "```csharp\n// World-space HUD UI -> each element drawn separately, poor batching\ncanvas.renderMode = RenderMode.WorldSpace;\n```",
+    "explanation": "Screen-space overlay HUDs batch efficiently, while world-space canvases can break batching and cause overdraw unless required for 3D diegetic UI.",
+    "performance_impact": "high",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Manual/UICanvas.html"
+    ]
+  },
+  {
+    "title": "Use TMP object pooling for chat logs",
+    "tags": ["ui", "text", "performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Reuse TMP_Text objects for log lines\nlineObj.SetActive(true);\nlineObj.GetComponent<TMP_Text>().text = msg;\n```",
+    "code_bad": "```csharp\n// Instantiate/destroy dozens of TMP_Text objects per message\nInstantiate(linePrefab);\n```",
+    "explanation": "For dynamic logs/chat, pool and reuse TMP objects. Frequent Instantiate/Destroy is expensive and fragments memory.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Manual/BestPracticeUnderstandingPerformanceInUnity6.html"
+    ]
+  },
+  {
+    "title": "Custom inspector: use serialized properties, not direct fields",
+    "tags": ["editor", "inspector"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nSerializedProperty speed;\nvoid OnEnable(){ speed=serializedObject.FindProperty(\"speed\"); }\npublic override void OnInspectorGUI(){\n  serializedObject.Update();\n  EditorGUILayout.PropertyField(speed);\n  serializedObject.ApplyModifiedProperties();\n}\n```",
+    "code_bad": "```csharp\n// Direct field access skips prefab override handling\n((MyComp)target).speed = EditorGUILayout.FloatField(...);\n```",
+    "explanation": "Always use SerializedProperty in custom inspectors to preserve prefab overrides, undo, and multi-object editing.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/SerializedProperty.html"
+    ]
+  },
+  {
+    "title": "Jobs: use BurstCompile attribute",
+    "tags": ["performance", "jobs"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[BurstCompile]\nstruct HeavyJob : IJob{ public void Execute(){ /* math-heavy loop */ } }\n```",
+    "code_bad": "```csharp\n// Same job without Burst -> slower managed IL\nstruct HeavyJob : IJob{ public void Execute(){ ... } }\n```",
+    "explanation": "Burst compiles jobs to highly optimized native code, often several times faster than C#. Mark performance-critical jobs with [BurstCompile].",
+    "performance_impact": "high",
+    "complexity": "advanced",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.burst@1.8/manual/index.html"
+    ]
+  },
+  {
+    "title": "Addressables: Async handle await pattern",
+    "tags": ["scene", "assets"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar handle = Addressables.LoadAssetAsync<GameObject>(\"Enemy\");\nawait handle.Task;\nvar prefab = handle.Result;\n```",
+    "code_bad": "```csharp\n// Blocking until done (freezes frame)\nwhile(!handle.IsDone){}\n```",
+    "explanation": "Use handle.Task with await for async-friendly asset loading. Never spin-wait on IsDone, which blocks the main thread.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.addressables@1.20/manual/AddressablesAsyncAwait.html"
+    ]
+  },
+  {
+    "title": "Use Rigidbody2D.MovePosition for 2D physics movement",
+    "tags": ["physics", "2d"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nRigidbody2D rb;\nvoid Awake(){ rb = GetComponent<Rigidbody2D>(); }\nvoid FixedUpdate(){\n  Vector2 input = new(Input.GetAxisRaw(\"Horizontal\"), Input.GetAxisRaw(\"Vertical\"));\n  rb.MovePosition(rb.position + input * 5f * Time.fixedDeltaTime);\n}\n```",
+    "code_bad": "```csharp\n// Direct transform moves bypass collisions\ntransform.position += new Vector3(Input.GetAxisRaw(\"Horizontal\"),0,0);\n```",
+    "explanation": "In 2D physics, MovePosition should be used in FixedUpdate to integrate smoothly with Box2D. Directly setting transform.position bypasses collision checks and can cause tunneling.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rigidbody2D.MovePosition.html"
+    ]
+  },
+  {
+    "title": "Use Physics.RaycastNonAlloc to reduce GC",
+    "tags": ["physics", "performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nRaycastHit[] hits = new RaycastHit[10];\nint count = Physics.RaycastNonAlloc(ray, hits);\nfor(int i=0;i<count;i++){ /* process hits[i] */ }\n```",
+    "code_bad": "```csharp\n// Allocates new array each call\nRaycastHit[] hits = Physics.RaycastAll(ray);\n```",
+    "explanation": "RaycastAll allocates a new array every call, which can produce GC spikes in frequent queries. Use RaycastNonAlloc with a preallocated array to avoid garbage.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Physics.RaycastNonAlloc.html"
+    ]
+  },
+  {
+    "title": "Use PlayerInput component for input routing",
+    "tags": ["input"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Add PlayerInput component and reference actions asset\nvoid OnMove(InputValue value){ Vector2 dir = value.Get<Vector2>(); }\nvoid OnJump(){ Debug.Log(\"Jump\"); }\n```",
+    "code_bad": "```csharp\n// Manual action enabling/disabling scattered in scripts\n```",
+    "explanation": "PlayerInput auto-manages input actions and sends callbacks based on action names. Simplifies routing and multiplayer input handling.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.inputsystem@1.0/manual/PlayerInput.html"
+    ]
+  },
+  {
+    "title": "Use ScriptableObject singletons for configs",
+    "tags": ["scripting", "architecture"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[CreateAssetMenu]\npublic class GameConfig : ScriptableObject {\n  private static GameConfig _inst;\n  public static GameConfig Inst => _inst ??= Resources.Load<GameConfig>(\"GameConfig\");\n  public int maxHP = 100;\n}\n```",
+    "code_bad": "```csharp\n// Global static vars with hardcoded defaults\npublic static int maxHP = 100;\n```",
+    "explanation": "ScriptableObject-based singleton configs are editable assets and support inspector tuning. Safer and more flexible than static globals.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://learn.unity.com/tutorial/using-scriptableobjects"
+    ]
+  },
+  {
+    "title": "Use async SceneManager.LoadSceneAsync with await",
+    "tags": ["scene", "loading"],
+    "unity_versions": ["6000.1+"],
+    "code_good": "```csharp\nawait SceneManager.LoadSceneAsync(\"Battle\", LoadSceneMode.Single);\n```",
+    "code_bad": "```csharp\n// Block main thread until done\nSceneManager.LoadScene(\"Battle\");\n```",
+    "explanation": "Unity 6+ allows awaiting LoadSceneAsync directly with Awaitable, yielding cleaner async scene transitions without callbacks.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/6000.1/Documentation/ScriptReference/SceneManagement.SceneManager.LoadSceneAsync.html"
+    ]
+  },
+  {
+    "title": "Avoid per-frame GetComponentInChildren",
+    "tags": ["performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nRenderer childRenderer;\nvoid Awake(){ childRenderer = GetComponentInChildren<Renderer>(); }\n```",
+    "code_bad": "```csharp\nvoid Update(){ var r = GetComponentInChildren<Renderer>(); }\n```",
+    "explanation": "Cache child component lookups instead of querying each frame, which traverses the transform hierarchy repeatedly.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://unity.com/how-to/unity-optimization-tips"
+    ]
+  },
+  {
+    "title": "Use NavMesh.SamplePosition to clamp target",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nNavMeshHit hit;\nif(NavMesh.SamplePosition(targetPos, out hit, 2f, NavMesh.AllAreas)){\n  agent.SetDestination(hit.position);\n}\n```",
+    "code_bad": "```csharp\n// Feeding raw world pos -> may fail if outside navmesh\nagent.SetDestination(targetPos);\n```",
+    "explanation": "SamplePosition ensures the destination is clamped to a valid NavMesh point within radius, preventing failed paths.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/AI.NavMesh.SamplePosition.html"
+    ]
+  },
+  {
+    "title": "Use CommandBuffer for custom rendering passes",
+    "tags": ["graphics", "rendering"],
+    "unity_versions": ["6000.2+"],
+    "code_good": "```csharp\nCommandBuffer cmd = new CommandBuffer();\ncmd.DrawRenderer(rend, mat);\nGraphics.ExecuteCommandBuffer(cmd);\n```",
+    "code_bad": "```csharp\n// Manual GL calls each frame, harder to batch\n```",
+    "explanation": "CommandBuffer integrates custom rendering into Unity’s pipeline efficiently, avoiding manual GL calls that break batching.",
+    "performance_impact": "high",
+    "complexity": "advanced",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rendering.CommandBuffer.html"
+    ]
+  },
+  {
+    "title": "Use ClientRpcParams to target specific clients",
+    "tags": ["multiplayer", "netcode"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[ClientRpc]\nvoid ShowMessageClientRpc(string msg, ClientRpcParams p = default){}\n// pass p to restrict recipients\n```",
+    "code_bad": "```csharp\n// Broadcasts to all clients when only one needs it\n```",
+    "explanation": "ClientRpcParams lets you send RPCs to chosen client IDs, reducing network traffic vs. broadcasting to all.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs-multiplayer.unity3d.com/netcode/current/advanced-topics/message-system"
+    ]
+  },
+  {
+    "title": "Use Rigidbody2D interpolation for smooth visuals",
+    "tags": ["physics", "2d"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nRigidbody2D rb;\nvoid Awake(){ rb = GetComponent<Rigidbody2D>(); rb.interpolation = RigidbodyInterpolation2D.Interpolate; }\n```",
+    "code_bad": "```csharp\n// Default None may look jittery when physics updates slower than render\nrb.interpolation = RigidbodyInterpolation2D.None;\n```",
+    "explanation": "Interpolation smooths Rigidbody2D motion between physics updates, reducing visual stutter at varying frame rates. Without it, motion can appear choppy.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rigidbody2D-interpolation.html"
+    ]
+  },
+  {
+    "title": "Use Physics.OverlapSphereNonAlloc for area checks",
+    "tags": ["physics", "performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nCollider[] results = new Collider[20];\nint count = Physics.OverlapSphereNonAlloc(transform.position, 5f, results);\n```",
+    "code_bad": "```csharp\n// Allocates array each time\nCollider[] cols = Physics.OverlapSphere(transform.position, 5f);\n```",
+    "explanation": "NonAlloc variants reuse arrays and prevent GC spikes, crucial for frequent area queries like explosions or proximity checks.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Physics.OverlapSphereNonAlloc.html"
+    ]
+  },
+  {
+    "title": "Use InputActionMap.Enable/Disable for mode switching",
+    "tags": ["input"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nplayerMap.Enable();\nuiMap.Disable();\n```",
+    "code_bad": "```csharp\n// Both maps active -> conflicting bindings\n```",
+    "explanation": "Enable/Disable whole InputActionMaps when switching control modes (e.g., gameplay vs UI). Prevents conflicts and simplifies state handling.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.inputsystem@1.0/manual/ActionMaps.html"
+    ]
+  },
+  {
+    "title": "Use ScriptableObject inventory definitions",
+    "tags": ["scripting", "architecture"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[CreateAssetMenu]\npublic class Item : ScriptableObject {\n  public string itemName; public Sprite icon;\n}\npublic class Inventory : MonoBehaviour {\n  public List<Item> items;\n}\n```",
+    "code_bad": "```csharp\n// Items defined as enums only -> no extensible data\n```",
+    "explanation": "ScriptableObjects let you define extensible assets for inventory items with data (names, icons). Avoid rigid enums that require code changes for new items.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://unity.com/how-to/architect-game-code-scriptable-objects"
+    ]
+  },
+  {
+    "title": "Use WaitForEndOfFrame for UI capture",
+    "tags": ["scripting", "async"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nIEnumerator Capture(){ yield return new WaitForEndOfFrame(); ScreenCapture.CaptureScreenshot(\"ui.png\"); }\n```",
+    "code_bad": "```csharp\n// Capture before rendering finished -> incomplete frame\nScreenCapture.CaptureScreenshot(\"ui.png\");\n```",
+    "explanation": "WaitForEndOfFrame ensures rendering is complete before screenshots or pixel reads, preventing partial captures.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/WaitForEndOfFrame.html"
+    ]
+  },
+  {
+    "title": "World-space UI: use CanvasScaler with constant pixel size",
+    "tags": ["ui", "ugui"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nCanvasScaler scaler = canvas.GetComponent<CanvasScaler>();\nscaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;\n```",
+    "code_bad": "```csharp\n// Default scale leads to distorted UI in 3D\n```",
+    "explanation": "For diegetic 3D UI, use ConstantPixelSize scaling to keep visuals consistent in world-space, avoiding unintended scaling.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/UI.CanvasScaler.html"
+    ]
+  },
+  {
+    "title": "Editor: Use OnValidate to auto-clamp values",
+    "tags": ["editor", "validation"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\npublic float speed;\nvoid OnValidate(){ speed = Mathf.Max(0, speed); }\n```",
+    "code_bad": "```csharp\n// Values may be set negative in Inspector, breaking logic\n```",
+    "explanation": "OnValidate runs in editor when values change, useful for clamping or auto-setup. Prevents invalid inspector inputs before play.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/MonoBehaviour.OnValidate.html"
+    ]
+  },
+  {
+    "title": "Use ProfilerMarker for custom profiling",
+    "tags": ["performance", "profiling"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nProfilerMarker marker = new ProfilerMarker(\"AI.Update\");\nvoid Update(){ using(marker.Auto()){ UpdateAI(); } }\n```",
+    "code_bad": "```csharp\n// No markers -> hard to diagnose slow code in Profiler\n```",
+    "explanation": "ProfilerMarker lets you label code blocks in Unity Profiler, aiding optimization by identifying expensive functions.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Profiling.ProfilerMarker.html"
+    ]
+  },
+  {
+    "title": "Addressables: instantiate directly from handle",
+    "tags": ["scene", "assets"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nAddressables.InstantiateAsync(\"EnemyPrefab\", pos, rot);\n```",
+    "code_bad": "```csharp\n// LoadAssetAsync + manual Instantiate -> redundant\n```",
+    "explanation": "InstantiateAsync loads and spawns in one step, simplifying code and letting Addressables manage lifecycle.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.addressables@1.20/manual/InstantiateAddressables.html"
+    ]
+  },
+  {
+    "title": "Use NetworkVariable with permissions",
+    "tags": ["multiplayer", "netcode"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\npublic NetworkVariable<int> hp = new NetworkVariable<int>(100,\n  NetworkVariableReadPermission.Everyone,\n  NetworkVariableWritePermission.Server);\n```",
+    "code_bad": "```csharp\n// Default write permissions -> clients may overwrite hp\n```",
+    "explanation": "Always set explicit read/write permissions on NetworkVariables to enforce authority. Prevents clients from modifying server-owned state.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs-multiplayer.unity3d.com/netcode/current/basics/networkvariable"
+    ]
+  },
+  {
+    "title": "Avoid FindObjectOfType in Update",
+    "tags": ["performance", "lookup"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nMyManager mgr;\nvoid Awake(){ mgr = FindObjectOfType<MyManager>(); }\n```",
+    "code_bad": "```csharp\nvoid Update(){ var mgr = FindObjectOfType<MyManager>(); }\n```",
+    "explanation": "FindObjectOfType allocates and is slow. Cache references in Awake/Start. Only use dynamic lookups during initialization or rare cases.",
+    "performance_impact": "high",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/Object.FindObjectOfType.html"]
+  },
+  {
+    "title": "Use object pooling for projectiles",
+    "tags": ["performance", "pooling"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nGameObject proj = pool.Get();\nproj.transform.SetPositionAndRotation(pos, rot);\n```",
+    "code_bad": "```csharp\nInstantiate(projectilePrefab, pos, rot);\nDestroy(proj, 2f);\n```",
+    "explanation": "Pooling avoids frequent Instantiate/Destroy which cause GC pressure and stutters. Use Unity's built-in ObjectPool<T> (6000.0+).",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/ScriptReference/PooledObject.html"]
+  },
+  {
+    "title": "Async scene loading with progress bar",
+    "tags": ["scene", "loading"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nIEnumerator Load(){ var op = SceneManager.LoadSceneAsync(\"Level2\");\nwhile(!op.isDone){ progressBar.value = op.progress; yield return null; } }\n```",
+    "explanation": "Use Async scene loading for smooth transitions. Expose progress for loading screens. Avoid blocking LoadScene calls.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/SceneManagement.SceneManager.LoadSceneAsync.html"]
+  },
+  {
+    "title": "DontDestroyOnLoad for managers",
+    "tags": ["scene", "lifecycle"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvoid Awake(){ DontDestroyOnLoad(gameObject); }\n```",
+    "code_bad": "```csharp\n// Recreate manager every scene -> duplicates\n```",
+    "explanation": "Mark persistent managers to survive scene loads. Combine with singleton checks to avoid duplicates.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/Object.DontDestroyOnLoad.html"]
+  },
+  {
+    "title": "Bake NavMesh via Navigation window",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// In editor: Window > AI > Navigation > Bake\n// At runtime use NavMeshSurface.BuildNavMesh();\n```",
+    "explanation": "NavMesh baking prepares surfaces for agents. Rebuild at runtime if procedural levels. Ensure colliders are marked 'Navigation Static'.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/Manual/nav-BuildingNavMesh.html"]
+  },
+  {
+    "title": "Configure NavMeshAgent speed and stopping distance",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nagent.speed = 3.5f;\nagent.stoppingDistance = 1f;\n```",
+    "explanation": "Tune NavMeshAgent for smooth arrival. Without stoppingDistance, agents may jitter when reaching targets.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/AI.NavMeshAgent.html"]
+  },
+  {
+    "title": "Use MaterialPropertyBlock for per-object color",
+    "tags": ["graphics", "rendering"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nMaterialPropertyBlock mpb = new();\nmpb.SetColor(\"_Color\", Color.red);\nrenderer.SetPropertyBlock(mpb);\n```",
+    "code_bad": "```csharp\n// Creates unique material instance per object\nrenderer.material.color = Color.red;\n```",
+    "explanation": "MaterialPropertyBlock changes material properties per-renderer without duplicating materials, saving memory and draw calls.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/ScriptReference/MaterialPropertyBlock.html"]
+  },
+  {
+    "title": "Shader Graph: use keywords for feature toggles",
+    "tags": ["graphics", "shader-graph"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n#pragma multi_compile _ FEATURE_ON\n```",
+    "explanation": "Use keywords for branching shader features. Avoid runtime material swaps. Note: adds variants; keep count low.",
+    "performance_impact": "medium",
+    "complexity": "advanced",
+    "references": ["https://docs.unity3d.com/Manual/SL-MultipleProgramVariants.html"]
+  },
+  {
+    "title": "Sync transform with NetworkTransform",
+    "tags": ["multiplayer", "netcode"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[RequireComponent(typeof(NetworkTransform))]\npublic class PlayerNet : NetworkBehaviour {}\n```",
+    "code_bad": "```csharp\n// Custom sync via RPC every frame -> bandwidth heavy\n```",
+    "explanation": "Use Netcode's built-in NetworkTransform for movement sync. Custom per-frame RPCs flood bandwidth.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": ["https://docs-multiplayer.unity3d.com/netcode/current/components/networktransform"]
+  },
+  {
+    "title": "Use ServerRpc/ClientRpc instead of custom messages",
+    "tags": ["multiplayer", "netcode"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[ServerRpc] void DamageServerRpc(int amount){ hp.Value -= amount; }\n```",
+    "code_bad": "```csharp\n// Send raw messages, manually serialize -> error prone\n```",
+    "explanation": "Netcode’s [ServerRpc]/[ClientRpc] attributes handle serialization and delivery. Avoid reinventing low-level messaging.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": ["https://docs-multiplayer.unity3d.com/netcode/current/advanced-topics/rpcs"]
+  },
+  {
+    "title": "Ground check: raycast vs OnCollisionStay",
+    "tags": ["physics", "character"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nbool IsGrounded(Transform t){\n  return Physics.Raycast(t.position + Vector3.up*0.1f, Vector3.down, out _, 0.2f, LayerMask.GetMask(\"Ground\"));\n}\n```",
+    "code_bad": "```csharp\n// Grounded flag toggled only in OnCollisionStay -> unreliable on sloped/concave meshes\nvoid OnCollisionStay(Collision c){ grounded = true; }\n```",
+    "explanation": "Explicit ray/sphere checks are deterministic per frame and filter by layers; relying on collision stay events easily misses brief contacts on slopes/steps.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Physics.Raycast.html",
+      "https://docs.unity3d.com/Manual/LayerBasedCollision.html"
+    ]
+  },
+  {
+    "title": "CharacterController: slope limit & step offset",
+    "tags": ["physics", "character"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nvar cc = GetComponent<CharacterController>();\ncc.slopeLimit = 45f;\ncc.stepOffset = 0.3f;\ncc.skinWidth = 0.08f;\n```",
+    "code_bad": "```csharp\n// Defaults cause sliding/clipping on steep terrain\n// slopeLimit too low -> can't climb small ramps\n```",
+    "explanation": "Tune slopeLimit/stepOffset/skinWidth to match level scale; prevents sticky steps and excessive sliding while keeping collision stable.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/CharacterController.html"
+    ]
+  },
+  {
+    "title": "Rigidbody: drag vs manual damping",
+    "tags": ["physics", "forces"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Prefer built-in drag for exponential damping\nrb.drag = 1.2f; // tune in Inspector\n```",
+    "code_bad": "```csharp\n// Manual velocity scaling each frame -> fights solver order\nrb.velocity *= 0.9f; // per Update\n```",
+    "explanation": "Use solver-integrated drag for predictable damping; manual scaling in Update bypasses physics integration and can cause jitter.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rigidbody-drag.html"
+    ]
+  },
+  {
+    "title": "Physics layers for hitscan weapons",
+    "tags": ["physics", "collision"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nint mask = LayerMask.GetMask(\"Enemy\",\"Environment\");\nif(Physics.Raycast(camPos, camFwd, out var hit, 100f, mask)) {\n  // process hit\n}\n```",
+    "code_bad": "```csharp\n// No mask -> ray hits UI triggers/skybox colliders if present\nPhysics.Raycast(camPos, camFwd, out var _);\n```",
+    "explanation": "Limit queries to relevant layers to avoid false positives and wasted work; the engine can early-reject non-mask colliders.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Manual/LayerBasedCollision.html"
+    ]
+  },
+  {
+    "title": "Input System: control schemes & device auto-switch",
+    "tags": ["input"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar pi = GetComponent<PlayerInput>();\npi.SwitchCurrentControlScheme(\"Gamepad\", Gamepad.current);\n// Or rely on auto-switch: set 'Auto-Switch' in PlayerInput\n```",
+    "code_bad": "```csharp\n// Hardcode per-key checks; no concept of devices/schemes\n```",
+    "explanation": "Control schemes let you map actions per device and switch cleanly at runtime or automatically when devices change.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.inputsystem@1.7/manual/ControlSchemes.html",
+      "https://docs.unity3d.com/Packages/com.unity.inputsystem@1.7/manual/PlayerInput.html"
+    ]
+  },
+  {
+    "title": "Input buffering with Input System",
+    "tags": ["input", "gameplay"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\npublic class Buffer : MonoBehaviour {\n  public InputActionReference jump;\n  float bufferUntil;\n  void OnEnable(){ jump.action.performed += _=> bufferUntil = Time.time + 0.1f; jump.action.Enable(); }\n  public bool Consume(){ if(Time.time<=bufferUntil){ bufferUntil=0; return true; } return false; }\n}\n```",
+    "code_bad": "```csharp\n// Misses inputs between state transitions\nif(state==Grounded && jumpPressed) DoJump();\n```",
+    "explanation": "Buffer short-window inputs to survive state changes (landing/animation gates). Improves feel without spamming checks.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://unity.com/features/input-system"
+    ]
+  },
+  {
+    "title": "Avoid LINQ/allocations in Update",
+    "tags": ["performance", "gc"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Pre-allocate lists and reuse\nstatic readonly List<Collider> tmp = new(32);\nint n = Physics.OverlapSphereNonAlloc(pos, r, _buf);\nfor(int i=0;i<n;i++){ /* process */ }\n```",
+    "code_bad": "```csharp\n// Alloc every frame\nvar enemies = FindObjectsOfType<Enemy>().Where(e=>e.hp>0).ToList();\n```",
+    "explanation": "LINQ, new lists, string concatenation, and boxing in Update/FixedUpdate create GC churn; reuse buffers and use NonAlloc APIs.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Manual/BestPracticeUnderstandingPerformanceInUnity6.html"
+    ]
+  },
+  {
+    "title": "Cache WaitForSeconds / WaitForEndOfFrame",
+    "tags": ["performance", "async"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nstatic readonly WaitForSeconds WFS_0_2 = new(0.2f);\nIEnumerator Blink(){ while(true){ yield return WFS_0_2; Toggle(); } }\n```",
+    "code_bad": "```csharp\n// Allocates every loop iteration\nIEnumerator Blink(){ while(true){ yield return new WaitForSeconds(0.2f); } }\n```",
+    "explanation": "Yield instruction objects allocate; caching commonly used ones avoids per-loop GC in long-running coroutines.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/WaitForSeconds.html"
+    ]
+  },
+  {
+    "title": "UI Toolkit: ListView with virtualization",
+    "tags": ["ui", "ui-toolkit", "performance"],
+    "unity_versions": ["6000.2+"],
+    "code_good": "```csharp\nvar list = new ListView(items, itemHeight:20,\n  makeItem: ()=> new Label(),\n  bindItem: (ve,i)=> ((Label)ve).text = items[i]);\nlist.virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight;\n```",
+    "code_bad": "```csharp\n// Manually creating hundreds of VisualElements without reuse\n```",
+    "explanation": "ListView virtualizes item visuals to keep memory and layout costs low for large data sets; bind instead of recreating elements.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Manual/UIE-ListView.html"
+    ]
+  },
+  {
+    "title": "UGUI: Avoid LayoutGroup thrash on large lists",
+    "tags": ["ui", "ugui", "performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Batch: disable layout, mutate, then force rebuild once\nLayoutRebuilder.MarkLayoutForRebuild(root); // after bulk add/remove\n```",
+    "code_bad": "```csharp\n// Adding/removing dozens of children one-by-one with active LayoutGroups\n```",
+    "explanation": "Frequent layout rebuilds are expensive; batch updates and rebuild once or disable LayoutGroup during bulk mutations.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Manual/script-LayoutGroup.html"
+    ]
+  },
+  {
+    "title": "InitializeOnLoad for auto editor setup",
+    "tags": ["editor", "lifecycle"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nusing UnityEditor;\n[InitializeOnLoad]\nstatic class Boot {\n  static Boot(){ EditorApplication.playModeStateChanged += s=>{}; }\n}\n```",
+    "code_bad": "```csharp\n// Rely on manual menu clicks to register callbacks every session\n```",
+    "explanation": "Use InitializeOnLoad to register editor callbacks on domain reload so tooling is always active without manual steps.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/InitializeOnLoadAttribute.html"
+    ]
+  },
+  {
+    "title": "AssetPostprocessor: auto-import settings",
+    "tags": ["editor", "pipeline"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nusing UnityEditor;\nclass TextureImporterRules : AssetPostprocessor {\n  void OnPreprocessTexture(){\n    var ti = (TextureImporter)assetImporter;\n    ti.mipmapEnabled = false; ti.textureCompression = TextureImporterCompression.Uncompressed;\n  }\n}\n```",
+    "code_bad": "```csharp\n// Manually fixing import settings per asset -> error prone\n```",
+    "explanation": "Automate consistent import settings to avoid regressions and manual labor when artists add/modify assets.",
+    "performance_impact": "low",
+    "complexity": "advanced",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/AssetPostprocessor.html"
+    ]
+  },
+  {
+    "title": "BuildPipeline: scripted builds",
+    "tags": ["editor", "pipeline"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nusing UnityEditor;\npublic static class CIBuilder {\n  public static void Build(){\n    BuildPipeline.BuildPlayer(new[]{\"Assets/Scenes/Main.unity\"},\n      \"Builds/Win/Game.exe\", BuildTarget.StandaloneWindows64, BuildOptions.None);\n  }\n}\n```",
+    "code_bad": "```csharp\n// Manual builds via UI -> inconsistent flags and human error\n```",
+    "explanation": "Scripted builds enable reproducible CI/CD with consistent options per target; integrate with command line or CI runners.",
+    "performance_impact": "low",
+    "complexity": "advanced",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/BuildPipeline.BuildPlayer.html"
+    ]
+  },
+  {
+    "title": "Material GPU Instancing toggle",
+    "tags": ["graphics", "performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// In material: Enable GPU Instancing (URP/HDRP compatible shaders)\n// Then draw many objects sharing same material & mesh\n```",
+    "code_bad": "```csharp\n// Unique materials per object -> no instancing, many draw calls\n```",
+    "explanation": "GPU instancing draws many identical meshes with one call; requires same material/shader variant and per-renderer data via MPB if needed.",
+    "performance_impact": "high",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/Manual/GPUInstancing.html"
+    ]
+  },
+  {
+    "title": "Scriptable Render Pipeline: per-camera volumes",
+    "tags": ["graphics", "urp/hdrp"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Use Volume Profiles + Layer masks per camera for post effects\ncamera.GetUniversalAdditionalCameraData().volumeLayerMask = LayerMask.GetMask(\"Post\");\n```",
+    "code_bad": "```csharp\n// Global single volume for all cameras -> unwanted effects in UI/minimap\n```",
+    "explanation": "Per-camera volume masks isolate post-processing stacks (e.g., main vs UI cameras), preventing unintended blending.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.render-pipelines.universal@latest/manual/Volumes.html"
+    ]
+  },
+  {
+    "title": "CommandBuffer: AfterForwardOpaque decals",
+    "tags": ["graphics", "rendering", "urp"],
+    "unity_versions": ["6000.2+"],
+    "code_good": "```csharp\nvar cmd = new UnityEngine.Rendering.CommandBuffer{ name = \"Decals\" };\ncmd.DrawMesh(mesh, Matrix4x4.identity, mat);\nRenderPipelineManager.endCameraRendering += (ctx,cam)=> ctx.ExecuteCommandBuffer(cmd);\n```",
+    "code_bad": "```csharp\n// Blit every frame to temp RT for simple overlays -> bandwidth heavy\n```",
+    "explanation": "Inject draws via CommandBuffers at appropriate pipeline events to avoid full-screen blits for localized effects like decals.",
+    "performance_impact": "high",
+    "complexity": "advanced",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/Rendering.RenderPipelineManager-endCameraRendering.html",
+      "https://docs.unity3d.com/ScriptReference/Rendering.CommandBuffer.html"
+    ]
+  },
+  {
+    "title": "Addressables: dependency preloading (warmup)",
+    "tags": ["scene", "assets", "addressables"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar handle = Addressables.DownloadDependenciesAsync(\"Level1\");\nawait handle.Task; // warm bundles before scene\n```",
+    "code_bad": "```csharp\n// Enter gameplay then download -> stalls mid-combat\n```",
+    "explanation": "Preload label/group dependencies before entering intense sections to avoid runtime hitches from bundle downloads/decompression.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/Packages/com.unity.addressables@1.20/manual/AddressablesDownloadDependencies.html"
+    ]
+  },
+  {
+    "title": "OffMeshLink traversal coroutine",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nIEnumerator Traverse(NavMeshAgent a){\n  if(a.isOnOffMeshLink){ var data = a.currentOffMeshLinkData;\n    // custom jump/anim here\n    yield return new WaitForSeconds(0.3f);\n    a.CompleteOffMeshLink();\n  }\n}\n```",
+    "code_bad": "```csharp\n// Ignore isOnOffMeshLink -> agents stall at gaps\n```",
+    "explanation": "Handle OffMeshLink transitions (jumps, ladders) explicitly to keep agents moving and trigger appropriate animations.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/AI.OffMeshLink.html",
+      "https://docs.unity3d.com/ScriptReference/AI.NavMeshAgent.isOnOffMeshLink.html"
+    ]
+  },
+  {
+    "title": "NavMeshAgent avoidance priority",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nagent.avoidancePriority = 20; // lower yields to higher numbers\n```",
+    "code_bad": "```csharp\n// All agents default -> deadlocks in narrow spaces\n```",
+    "explanation": "Set avoidancePriority to resolve traffic; lower values yield first. Stagger teams/NPC types for smoother crowd motion.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs.unity3d.com/ScriptReference/AI.NavMeshAgent-avoidancePriority.html"
+    ]
+  },
+  {
+    "title": "Netcode: NetworkPrefab registration",
+    "tags": ["multiplayer", "netcode"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Ensure prefab is in NetworkManager > NetworkPrefabs list\n// or register at runtime via NetworkPrefabHandler\n```",
+    "code_bad": "```csharp\n// Spawn() a prefab not registered -> runtime exceptions\n```",
+    "explanation": "NGO only spawns registered prefabs; register in NetworkManager or programmatically to avoid spawn failures on clients.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs-multiplayer.unity3d.com/netcode/current/advanced-topics/network-prefabs"
+    ]
+  },
+  {
+    "title": "Netcode: ownership checks before input",
+    "tags": ["multiplayer", "netcode"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvoid Update(){ if(!IsOwner) return; HandleInput(); }\n```",
+    "code_bad": "```csharp\n// All clients run input -> conflicting state & rubber-banding\n```",
+    "explanation": "Only the owning client should drive input for its object; others interpolate replicated state to prevent desync.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": [
+      "https://docs-multiplayer.unity3d.com/netcode/current/basics/object-ownership"
+    ]
+  },
+  {
+    "title": "Use AddTorque for rotation (don’t rotate Transform)",
+    "tags": ["physics", "rotation"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nRigidbody rb;\nvoid Awake(){ rb = GetComponent<Rigidbody>(); }\nvoid FixedUpdate(){ rb.AddTorque(Vector3.up * 5f, ForceMode.Acceleration); }\n```",
+    "code_bad": "```csharp\n// Teleporting rotation bypasses physics\ntransform.Rotate(0f, 90f * Time.deltaTime, 0f);\n```",
+    "explanation": "Apply torque in FixedUpdate so angular motion is solved by physics; direct Transform rotation can cause clipping and non-physical behavior.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/Rigidbody.AddTorque.html"]
+  },
+  {
+    "title": "Do physics work in FixedUpdate (not Update)",
+    "tags": ["physics", "lifecycle"],
+    "unity_versions": ["6000.0+", "2022.3 (legacy)"],
+    "code_good": "```csharp\nvoid FixedUpdate(){ rb.AddForce(input * accel, ForceMode.Acceleration); }\n```",
+    "code_bad": "```csharp\nvoid Update(){ rb.AddForce(input * accel); }\n```",
+    "explanation": "FixedUpdate runs at the physics timestep; applying forces in Update introduces jitter and non-deterministic results.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/Manual/ExecutionOrder.html"]
+  },
+  {
+    "title": "QueryTriggerInteraction for precise raycasts",
+    "tags": ["physics", "collision"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nPhysics.Raycast(ray, out var hit, 100f, mask, QueryTriggerInteraction.Ignore);\n```",
+    "code_bad": "```csharp\n// Default may hit triggers unexpectedly\nPhysics.Raycast(ray, out var hit);\n```",
+    "explanation": "Explicitly include/exclude triggers to avoid UI/volume triggers interfering with gameplay raycasts.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/QueryTriggerInteraction.html"]
+  },
+  {
+    "title": "Use PhysicsScene for deterministic local queries",
+    "tags": ["physics", "advanced"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar scene = gameObject.scene.GetPhysicsScene();\nif(scene.IsValid()) scene.Raycast(origin, dir, out var hit, 50f);\n```",
+    "code_bad": "```csharp\n// Mixing queries across scenes during streaming can return stale hits\nPhysics.Raycast(origin, dir, out var hit);\n```",
+    "explanation": "A PhysicsScene lets you raycast in a specific scene (useful for additive streaming, previews, or tests) instead of hitting global state.",
+    "performance_impact": "low",
+    "complexity": "advanced",
+    "references": ["https://docs.unity3d.com/ScriptReference/PhysicsScene.html"]
+  },
+  {
+    "title": "Ignore layer collisions globally",
+    "tags": ["physics", "collision"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Disable Player<->Player collisions\nPhysics.IgnoreLayerCollision(LayerMask.NameToLayer(\"Player\"), LayerMask.NameToLayer(\"Player\"), true);\n```",
+    "code_bad": "```csharp\n// Filtering every OnCollisionEnter by tag each time\n```",
+    "explanation": "Use layer collision matrix or IgnoreLayerCollision up front to skip broad-phase work and reduce per-contact filtering cost.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/Physics.IgnoreLayerCollision.html"]
+  },
+  {
+    "title": "CapsuleCast for character feet check",
+    "tags": ["physics", "character"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nbool Grounded(){\n  var p1 = transform.position + Vector3.up * 0.1f;\n  var p2 = p1 + Vector3.up * (height-0.2f);\n  return Physics.CapsuleCast(p1,p2,radius, Vector3.down, out _, 0.2f, groundMask);\n}\n```",
+    "code_bad": "```csharp\n// Single-point Raycast misses small gaps/steps\n```",
+    "explanation": "A capsule better approximates a character footprint than a single ray, reducing false negatives on uneven ground.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/ScriptReference/Physics.CapsuleCast.html"]
+  },
+  {
+    "title": "Use Rigidbody.useGravity instead of manual gravity",
+    "tags": ["physics", "forces"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nrb.useGravity = true;\n```",
+    "code_bad": "```csharp\n// Manual velocity += Physics.gravity*dt in Update\n```",
+    "explanation": "Let the solver integrate gravity; custom gravity in Update can desync with collisions and interpolation.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/Rigidbody-useGravity.html"]
+  },
+  {
+    "title": "Choose trigger vs collision callbacks correctly",
+    "tags": ["physics", "events"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvoid OnTriggerEnter(Collider other){ /* volumes, pickups */ }\nvoid OnCollisionEnter(Collision c){ /* physical impacts */ }\n```",
+    "code_bad": "```csharp\n// Using collisions for trigger volumes (requires unnecessary contacts)\n```",
+    "explanation": "Use triggers when you don’t need physical response; collisions compute contact manifolds and are heavier.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/Manual/CollidersOverview.html"]
+  },
+  {
+    "title": "2D: CompositeCollider2D to merge tiles",
+    "tags": ["physics", "2d"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Add CompositeCollider2D + set TilemapCollider2D.usedByComposite = true\n```",
+    "code_bad": "```csharp\n// Thousands of tiny tile colliders -> slow contacts\n```",
+    "explanation": "CompositeCollider2D merges many small shapes into larger ones, cutting contact pairs and improving performance on tilemaps.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/Manual/class-CompositeCollider2D.html"]
+  },
+  {
+    "title": "Use Rigidbody.maxLinearVelocity to clamp speed (6.x)",
+    "tags": ["physics", "stability"],
+    "unity_versions": ["6000.1+"],
+    "code_good": "```csharp\nrb.maxLinearVelocity = 50f;\n```",
+    "code_bad": "```csharp\n// Manually clamping velocity in Update -> jitter\n```",
+    "explanation": "Engine-side speed clamps prevent extreme velocities that cause tunneling without per-frame script meddling.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/ScriptReference/Rigidbody-maxLinearVelocity.html"]
+  },
+  {
+    "title": "TryGetComponent to avoid exceptions",
+    "tags": ["scripting", "patterns"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nif(TryGetComponent(out Rigidbody rb)){ /* use rb */ }\n```",
+    "code_bad": "```csharp\nvar rb = GetComponent<Rigidbody>(); // null? use causes NRE\n```",
+    "explanation": "TryGetComponent avoids GC and null exceptions by branching only when the component exists.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/Component.TryGetComponent.html"]
+  },
+  {
+    "title": "SerializeField on private fields (encapsulation)",
+    "tags": ["scripting", "patterns"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[SerializeField] private float speed = 5f;\npublic float Speed => speed;\n```",
+    "code_bad": "```csharp\npublic float speed = 5f; // wide-open\n```",
+    "explanation": "Expose data to the Inspector without making fields public; keep API surface minimal and safe.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/SerializeField.html"]
+  },
+  {
+    "title": "Awake vs Start ordering",
+    "tags": ["scripting", "lifecycle"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvoid Awake(){ cache = GetComponent<Renderer>(); }\nvoid Start(){ cache.material = shared; }\n```",
+    "code_bad": "```csharp\nvoid Start(){ cache = GetComponent<Renderer>(); /* may race with others' Start */ }\n```",
+    "explanation": "Awake is for internal setup and reference caching; Start runs after all Awakes—use it to interact with other objects.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/Manual/ExecutionOrder.html"]
+  },
+  {
+    "title": "Use interfaces + RequireComponent",
+    "tags": ["scripting", "architecture"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[RequireComponent(typeof(Rigidbody))]\npublic class Shooter : MonoBehaviour, IFireable { public void Fire(){} }\n```",
+    "code_bad": "```csharp\n// Missing dependencies until runtime -> null refs\n```",
+    "explanation": "RequireComponent enforces dependencies at author-time; interfaces make systems testable and decoupled.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/ScriptReference/RequireComponent.html"]
+  },
+  {
+    "title": "Use Mathf.Approximately for float comparisons",
+    "tags": ["scripting", "numerics"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nif(Mathf.Approximately(a,b)) { /* equal enough */ }\n```",
+    "code_bad": "```csharp\nif(a == b){ /* fragile */ }\n```",
+    "explanation": "Floating-point equality is brittle; use epsilon-based checks via Approximately for robustness.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/Mathf.Approximately.html"]
+  },
+  {
+    "title": "Use Time.unscaledDeltaTime for pause-aware UI",
+    "tags": ["scripting", "time"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Fade UI while game paused\nalpha += speed * Time.unscaledDeltaTime;\n```",
+    "code_bad": "```csharp\nalpha += speed * Time.deltaTime; // stops when timeScale=0\n```",
+    "explanation": "When timeScale=0 (paused), deltaTime is 0; use unscaledDeltaTime for UI/menus/animations independent of timeScale.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/Time-unscaledDeltaTime.html"]
+  },
+  {
+    "title": "Use Color32 for byte-driven colors",
+    "tags": ["scripting", "gc"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nrenderer.material.color = (Color32)new Color32(255,128,0,255);\n```",
+    "code_bad": "```csharp\nnew Color(1f, 0.5f, 0f, 1f); // float conversions per-pixel operations\n```",
+    "explanation": "Color32 packs bytes and avoids float conversions for pixel-heavy operations; faster when setting many colors.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/ScriptReference/Color32.html"]
+  },
+  {
+    "title": "Bounds / OverlapBox for area logic",
+    "tags": ["scripting", "physics"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nif(Physics.OverlapBoxNonAlloc(center, halfExtents, buf) > 0){ /* inside */ }\n```",
+    "code_bad": "```csharp\n// Many tiny raycasts -> slower & noisier\n```",
+    "explanation": "Use box overlaps to check presence within regions; fewer queries and simpler logic than multiple rays.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/ScriptReference/Physics.OverlapBoxNonAlloc.html"]
+  },
+  {
+    "title": "StringBuilder for looped concatenation",
+    "tags": ["performance", "gc"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar sb = new System.Text.StringBuilder();\nfor(int i=0;i<n;i++) sb.AppendLine(names[i]);\nlabel.text = sb.ToString();\n```",
+    "code_bad": "```csharp\nfor(int i=0;i<n;i++) label.text += names[i] + \"\\n\"; // allocs\n```",
+    "explanation": "Avoid repeated string concatenations in loops which create garbage; build once and assign.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": ["https://learn.microsoft.com/dotnet/api/system.text.stringbuilder"]
+  },
+  {
+    "title": "CanvasGroup for fade & interactivity",
+    "tags": ["ui", "ugui"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar cg = panel.GetComponent<CanvasGroup>();\ncg.alpha = 0.5f; cg.interactable = false; cg.blocksRaycasts = false;\n```",
+    "code_bad": "```csharp\n// Toggling many child SetActive -> rebuild cost\n```",
+    "explanation": "CanvasGroup toggles opacity and input without activating/deactivating hierarchies, reducing layout rebuilds.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/CanvasGroup.html"]
+  },
+  {
+    "title": "TMP.SetText to reduce allocations",
+    "tags": ["ui", "text", "gc"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nlabel.SetText(\"Score: {0}\", score);\n```",
+    "code_bad": "```csharp\nlabel.text = \"Score: \" + score; // allocs each frame\n```",
+    "explanation": "SetText formatting overloads avoid intermediate strings and reduce GC in frequently updated labels.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/Packages/com.unity.textmeshpro@latest"]
+  },
+  {
+    "title": "Localization package: LocalizedString",
+    "tags": ["ui", "localization"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nusing UnityEngine.Localization;\npublic LocalizedString titleKey;\nasync void Start(){ label.text = await titleKey.GetLocalizedStringAsync(); }\n```",
+    "code_bad": "```csharp\n// Hardcoded English strings in code\n```",
+    "explanation": "Use Localization to manage translations and variants; async retrieval plugs into tables and culture switching.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/Packages/com.unity.localization@latest"]
+  },
+  {
+    "title": "UI Toolkit: style via class lists (avoid inline styles)",
+    "tags": ["ui", "ui-toolkit", "performance"],
+    "unity_versions": ["6000.2+"],
+    "code_good": "```csharp\nve.AddToClassList(\"warning\"); // USS controls look\n```",
+    "code_bad": "```csharp\nve.style.color = Color.red; // per-frame inline style churn\n```",
+    "explanation": "Class toggles are batched; inline style changes trigger restyles and layout recalcs on many elements.",
+    "performance_impact": "high",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/Manual/UIE-USS.html"]
+  },
+  {
+    "title": "World-space UI: disable Raycast Target on visuals",
+    "tags": ["ui", "ugui", "performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nimage.raycastTarget = false; // on non-interactive graphics\n```",
+    "code_bad": "```csharp\n// RaycastTarget true on every Image -> costly hit tests\n```",
+    "explanation": "Limit UI raycastable elements to actual interactables to cut raycaster overhead.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/Manual/script-GraphicRaycaster.html"]
+  },
+  {
+    "title": "Avoid Camera.main in Update (cache it)",
+    "tags": ["performance", "lookup"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nCamera cam;\nvoid Awake(){ cam = Camera.main; }\n```",
+    "code_bad": "```csharp\nvoid Update(){ var cam = Camera.main; }\n```",
+    "explanation": "Camera.main searches by tag each call; cache references for per-frame usage.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/Camera-main.html"]
+  },
+  {
+    "title": "Static batching for static geometry",
+    "tags": ["graphics", "performance"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Mark level meshes as Static in Inspector (or via API)\nGameObjectUtility.SetStaticFlags(go, StaticEditorFlags.BatchingStatic);\n```",
+    "code_bad": "```csharp\n// Many dynamic objects with unique materials -> draw-call heavy\n```",
+    "explanation": "Static batching merges static meshes at build-time to reduce draw calls; pair with shared materials.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/Manual/static-batching.html"]
+  },
+  {
+    "title": "Occlusion Culling bake for dense scenes",
+    "tags": ["graphics", "visibility"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n// Window > Rendering > Occlusion Culling > Bake\n```",
+    "code_bad": "```csharp\n// Rely on frustum only -> hidden rooms still rendered\n```",
+    "explanation": "Occlusion prevents rendering of objects blocked by geometry, cutting overdraw and CPU work in complex levels.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/Manual/OcclusionCulling.html"]
+  },
+  {
+    "title": "Reflection Probes: box projection for interiors",
+    "tags": ["graphics", "lighting"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nprobe.boxProjection = true; probe.size = new Vector3(10,4,8);\n```",
+    "code_bad": "```csharp\n// Single global probe -> warped reflections indoors\n```",
+    "explanation": "Use box-projected probes to better match room shapes; improves specular/reflection accuracy for PBR materials.",
+    "performance_impact": "medium",
+    "complexity": "advanced",
+    "references": ["https://docs.unity3d.com/Manual/class-ReflectionProbe.html"]
+  },
+  {
+    "title": "Lighting: Mixed lights for static + dynamic",
+    "tags": ["graphics", "lighting"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nlight.lightmapBakeType = LightmapBakeType.Mixed;\n```",
+    "code_bad": "```csharp\n// All realtime lights -> CPU/GPU heavy\n```",
+    "explanation": "Mixed lights bake indirect for statics and keep direct for dynamics, balancing quality and performance.",
+    "performance_impact": "high",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/Manual/Lighting.html"]
+  },
+  {
+    "title": "Mesh.CombineMeshes for static props",
+    "tags": ["graphics", "batching"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar mf = GetComponent<MeshFilter>();\nMesh.CombineMeshes(combineInstances, true, true);\n```",
+    "code_bad": "```csharp\n// Hundreds of tiny meshes -> many draw calls\n```",
+    "explanation": "Combining meshes reduces renderer count; useful for static clutter sharing materials.",
+    "performance_impact": "high",
+    "complexity": "advanced",
+    "references": ["https://docs.unity3d.com/ScriptReference/Mesh.CombineMeshes.html"]
+  },
+  {
+    "title": "Undo.RecordObject for editor changes",
+    "tags": ["editor", "undo"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nUndo.RecordObject(target, \"Change Speed\");\ncomp.speed = 5f;\n```",
+    "code_bad": "```csharp\n// No undo support -> user changes are irreversible\n```",
+    "explanation": "Always record undo in custom editors so changes are reversible and play nicely with prefab overrides.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/ScriptReference/Undo.RecordObject.html"]
+  },
+  {
+    "title": "EditorCoroutineUtility for editor-time tasks",
+    "tags": ["editor", "async"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nEditorCoroutineUtility.StartCoroutineOwnerless(ProcessLongTask());\n```",
+    "code_bad": "```csharp\n// Blocking editor with long loops in menu commands\n```",
+    "explanation": "Editor coroutines keep the editor responsive while running procedural import/tools steps.",
+    "performance_impact": "low",
+    "complexity": "advanced",
+    "references": ["https://docs.unity3d.com/ScriptReference/EditorCoroutineUtility.html"]
+  },
+  {
+    "title": "MenuItem validate function",
+    "tags": ["editor", "menus"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[MenuItem(\"Tools/Do Thing\", true)] static bool Validate(){ return Selection.activeObject; }\n```",
+    "code_bad": "```csharp\n// Menu always enabled -> errors with null selection\n```",
+    "explanation": "Validation methods enable/disable menu items contextually, preventing runtime errors in editor tooling.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/MenuItem.html"]
+  },
+  {
+    "title": "ExecuteAlways with care",
+    "tags": ["editor", "lifecycle"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\n[ExecuteAlways]\nvoid Update(){ if(!Application.isPlaying){ /* editor previews */ } }\n```",
+    "code_bad": "```csharp\n// Heavy Update logic marked ExecuteAlways -> sluggish editor\n```",
+    "explanation": "ExecuteAlways runs in edit mode; keep logic lightweight to avoid editor slowdowns and unintended side effects.",
+    "performance_impact": "medium",
+    "complexity": "advanced",
+    "references": ["https://docs.unity3d.com/ScriptReference/ExecuteAlways.html"]
+  },
+  {
+    "title": "Addressables: ReleaseInstance for spawned prefabs",
+    "tags": ["scene", "assets", "addressables"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar h = Addressables.InstantiateAsync(addr);\nvar go = await h.Task;\n// later\nAddressables.ReleaseInstance(go);\n```",
+    "code_bad": "```csharp\nDestroy(go); // leaks bundle refs\n```",
+    "explanation": "ReleaseInstance decrements handle counts for instantiated addressable prefabs; Destroy alone won’t free bundles.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/Packages/com.unity.addressables@1.20/manual/InstantiatingAddressables.html"]
+  },
+  {
+    "title": "SetActiveScene after additive load",
+    "tags": ["scene", "loading"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nawait SceneManager.LoadSceneAsync(\"Gameplay\", LoadSceneMode.Additive);\nSceneManager.SetActiveScene(SceneManager.GetSceneByName(\"Gameplay\"));\n```",
+    "code_bad": "```csharp\n// Rely on previous active scene -> lighting/input routes wrong\n```",
+    "explanation": "Active scene decides lightmaps, new object parenting, and many systems—set it explicitly after additive loads.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/ScriptReference/SceneManagement.SceneManager.SetActiveScene.html"]
+  },
+  {
+    "title": "Scene cleanup hooks",
+    "tags": ["scene", "lifecycle"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvoid OnDisable(){ StopAllCoroutines(); }\nvoid OnDestroy(){ /* release refs */ }\n```",
+    "code_bad": "```csharp\n// Coroutines keep running referencing destroyed objects\n```",
+    "explanation": "Stop coroutines and release resources when objects are disabled/destroyed to prevent errors and leaks across scene changes.",
+    "performance_impact": "medium",
+    "complexity": "beginner",
+    "references": ["https://docs.unity3d.com/ScriptReference/MonoBehaviour.OnDestroy.html"]
+  },
+  {
+    "title": "NavMeshObstacle with carving for dynamic blockers",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar o = GetComponent<NavMeshObstacle>();\no.carving = true;\n```",
+    "code_bad": "```csharp\n// Agents push through closing doors\n```",
+    "explanation": "Carving updates the navmesh locally around dynamic obstacles like doors so agents re-route correctly.",
+    "performance_impact": "medium",
+    "complexity": "intermediate",
+    "references": ["https://docs.unity3d.com/Manual/class-NavMeshObstacle.html"]
+  },
+  {
+    "title": "NavMeshQueryFilter for per-query area masks",
+    "tags": ["ai", "navigation"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar f = new NavMeshQueryFilter{ areaMask = 1<<NavMesh.GetAreaFromName(\"Walkable\") };\nNavMesh.SamplePosition(pos, out var hit, 2f, f);\n```",
+    "code_bad": "```csharp\n// Global AllAreas -> ignores per-AI restrictions\n```",
+    "explanation": "Filters apply area costs/masks per query, enabling different AI types to prefer different routes.",
+    "performance_impact": "low",
+    "complexity": "advanced",
+    "references": ["https://docs.unity3d.com/ScriptReference/AI.NavMeshQueryFilter.html"]
+  },
+  {
+    "title": "Simple steering: desired - velocity",
+    "tags": ["ai", "movement"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nVector3 Steering(Vector3 tgt){\n  var desired = (tgt - pos).normalized * maxSpeed;\n  return (desired - vel).normalized * accel;\n}\n```",
+    "code_bad": "```csharp\n// Snap to target direction -> jitter/overshoot\n```",
+    "explanation": "Basic steering smooths acceleration by pushing velocity toward a desired vector instead of teleporting direction.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": ["https://gamedev.tutsplus.com/articles/implementation/understanding-steering-behaviors--gamedev-7612"]
+  },
+  {
+    "title": "NGO: Spawn/Despawn server-side",
+    "tags": ["multiplayer", "netcode"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvar obj = Instantiate(prefab);\nobj.GetComponent<NetworkObject>().Spawn();\n// later: networkObj.Despawn();\n```",
+    "code_bad": "```csharp\n// Instantiate only on client -> invisible to others\n```",
+    "explanation": "Spawning must be done by server/host so objects replicate to all clients; use Despawn to remove.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs-multiplayer.unity3d.com/netcode/current/basics/object-spawning"]
+  },
+  {
+    "title": "NGO: ChangeOwnership for pickups/possession",
+    "tags": ["multiplayer", "authority"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nnetworkObj.ChangeOwnership(clientId);\n```",
+    "code_bad": "```csharp\n// Multiple clients writing transforms concurrently\n```",
+    "explanation": "Transfer ownership to let a client authoritatively drive an object (e.g., possessed drone) while others observe.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": ["https://docs-multiplayer.unity3d.com/netcode/current/advanced-topics/object-ownership"]
+  },
+  {
+    "title": "NetworkVariable.OnValueChanged subscription",
+    "tags": ["multiplayer", "sync"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nvoid OnEnable(){ hp.OnValueChanged += OnHp; }\nvoid OnDisable(){ hp.OnValueChanged -= OnHp; }\n```",
+    "code_bad": "```csharp\n// Poll hp.Value each frame\n```",
+    "explanation": "React to replicated state changes via callbacks instead of polling; reduces CPU and latency to UI updates.",
+    "performance_impact": "low",
+    "complexity": "beginner",
+    "references": ["https://docs-multiplayer.unity3d.com/netcode/current/basics/networkvariable"]
+  },
+  {
+    "title": "NetworkSceneManager for synchronized scene switches",
+    "tags": ["multiplayer", "scenes"],
+    "unity_versions": ["6000.0+"],
+    "code_good": "```csharp\nNetworkManager.SceneManager.LoadScene(\"Arena\", LoadSceneMode.Single);\n```",
+    "code_bad": "```csharp\n// Clients call SceneManager.LoadScene locally -> desync\n```",
+    "explanation": "Use the network scene manager so all peers load/unload scenes in lockstep under server control.",
+    "performance_impact": "low",
+    "complexity": "intermediate",
+    "references": ["https://docs-multiplayer.unity3d.com/netcode/current/advanced-topics/networkscene-manager"]
+  }
+]
